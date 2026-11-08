@@ -30,6 +30,9 @@ install -m 0644 -t /etc/topgen \
   "$CONFIG/scrape_sites.txt" "$CONFIG/vmail.cfg" "$CONFIG/delegations.dns"
 install -d "$VARLIB"/{etc/postfix,vhosts,certs,named}
 install -d -m 0700 -o dovenull -g dovenull "$VARLIB/vmail"
+# runtime dirs the daemons in the topgen.info node expect
+install -d -o bind -g bind /var/cache/bind/data
+install -d -o postfix -g root /var/spool/postfix/private
 ln -sfn "$VARLIB/etc/nginx.conf" /etc/nginx/conf.d/topgen.conf
 rm -f /etc/nginx/sites-enabled/default
 

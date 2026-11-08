@@ -9,7 +9,7 @@ PASSWORD=${PASSWORD:-slatebox}
 PORT=${PORT:-2222}
 CLIENT=DeltaUser1
 
-command -v sshpass >/dev/null || sudo apt-get install -y sshpass
+command -v sshpass >/dev/null || sudo apt-get install -y sshpass openssh-client
 
 qemu-system-x86_64 -snapshot -machine accel="$ACCEL" -cpu max -smp 4 -m 8192 \
   -drive file="$IMG",if=virtio -display none \

@@ -138,11 +138,14 @@ The upstream trees in `vendor/` are never edited. `install.sh` copies them and a
   - `0001-ubuntu-paths`: Debian paths (`/etc/ssl`, `/var/cache/bind`, root hints) and guards on
     the SELinux calls.
   - `0002-vmail-getopts`: fixes the `-c` option of `topgen-vmail.sh`.
-  - `0003-persistent-ca-crl`: a persistent CA database, random serials, a CRL distribution point and
+  - `0003-persistent-ca-crl`: a persistent CA database, random serials, an external CA chain, a CRL distribution point and
     serverAuth on leaf certificates, and a CRL on topgen.info.
   - `0004-no-fetch`: `topgen-scrape.sh -n` uses existing vhosts, and `-H` sets preset IPs (used for S3).
-  - later patches: CA chain and Dovecot 2.4 configuration.
-- `patches/greybox/`: `TopGenBoot.sh` fixes for Ubuntu (`named -u bind`, nginx and postfix paths).
+  - `0005-dovecot-2.4`: rewrites the generated `dovecot.conf` for Dovecot 2.4 (IMAP only).
+  - `0006-vmail-ca-certs`: the mail server certificates are issued by the TopGen CA instead of
+    being self-signed.
+- `patches/greybox/0001-topgenboot-ubuntu`: `TopGenBoot.sh` fixes in the maps for Ubuntu
+  (`named -u bind`, nginx and postfix paths).
 
 New files:
 

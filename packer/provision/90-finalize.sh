@@ -17,21 +17,11 @@ update-ca-certificates --fresh >/dev/null
 # The login user keeps its password but sudo asks for it from now on.
 rm -f /etc/sudoers.d/90-cloud-init-users
 
-# Regenerate SSH host keys on first boot even if cloud-init has no seed.
-cat >/etc/systemd/system/slatebox-ssh-keygen.service <<'UNIT'
-[Unit]
-Description=Generate missing SSH host keys
-ConditionPathExists=!/etc/ssh/ssh_host_ed25519_key
-Before=ssh.service
+# Password SSH logins by default (sorts before the cloud image's 60- "no";
+# a user's cloud-init seed with ssh_pwauth writes 50-cloud-init.conf, which wins).
+echo "PasswordAuthentication yes" >/etc/ssh/sshd_config.d/55-slatebox.conf
 
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/ssh-keygen -A
-
-[Install]
-WantedBy=ssh.service
-UNIT
-systemctl enable slatebox-ssh-keygen.service
+# Host keys are regenerated on first boot (sshd-keygen.service, machine-id reset below).
 rm -f /etc/ssh/ssh_host_*
 
 apt-get clean

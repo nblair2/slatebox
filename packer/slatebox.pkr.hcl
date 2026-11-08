@@ -39,11 +39,12 @@ source "qemu" "slatebox" {
     EOF
   }
 
-  communicator     = "ssh"
-  ssh_username     = "slatebox"
-  ssh_password     = var.admin_password
-  ssh_timeout      = "60m"
-  shutdown_command = "sudo shutdown -P now"
+  communicator = "ssh"
+  ssh_username = "slatebox"
+  ssh_password = var.admin_password
+  ssh_timeout  = "60m"
+  # 90-finalize.sh removes passwordless sudo
+  shutdown_command = "echo '${var.admin_password}' | sudo -S shutdown -P now"
 }
 
 locals {
