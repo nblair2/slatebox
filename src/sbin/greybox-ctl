@@ -40,10 +40,8 @@ def start(path=DEFAULT_MAP):
     client = connect()
     _, sid = client.open_xml(Path(path).resolve(), start=True)
     SID_FILE.write_text(f"{sid}\n")
-    state = client.get_session(sid).state
-    print(f"greybox: session {sid} {state.name}")
-    if state != SessionState.RUNTIME:
-        sys.exit("greybox: some node services failed to boot (see core-daemon log)")
+    # CORE reaches RUNTIME even if some node services failed; those are only logged.
+    print(f"greybox: session {sid} {client.get_session(sid).state.name}")
 
 
 def stop():

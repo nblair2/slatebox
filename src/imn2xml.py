@@ -17,8 +17,8 @@ import xml.etree.ElementTree as ET
 DEVICE_MODELS = {"router", "host", "PC"}
 DEFAULT_SERVICES = {"host": ["DefaultRoute"], "PC": ["DefaultRoute"]}
 NETWORK_TYPES = {"lanswitch": "SWITCH", "rj45": "RJ45"}
-LINK_OPTIONS = {"delay": "delay", "bandwidth": "bandwidth", "jitter": "jitter"}
-LINK_COSMETIC = {"label", "color", "width", "mirror"}
+LINK_OPTIONS = ("delay", "bandwidth")  # same units (us, bps) in .imn and CORE 9 XML
+LINK_IGNORED = {"label", "color", "width", "mirror"}
 TOP_IGNORED = {"canvas", "option", "annotation"}
 
 
@@ -103,7 +103,7 @@ def parse(text):
         elif kind == "link":
             link = {"name": rest[0]}
             for key, *vals in commands(rest[1]):
-                if key not in LINK_OPTIONS and key not in LINK_COSMETIC | {"nodes"}:
+                if key not in {*LINK_OPTIONS, *LINK_IGNORED, "nodes"}:
                     sys.exit(f"link {rest[0]}: unsupported option {key}")
                 link[key] = vals[0]
             links.append(link)
@@ -169,9 +169,10 @@ def convert(text, rj45=None):
             if files:
                 templates = ET.SubElement(cfg, "templates")
                 for f, body in files:
-                    if "</%text>" in body:
-                        sys.exit(f"{n['name']}: {f} contains </%text>")
-                    # CORE renders templates with Mako; <%text> keeps the content literal.
+                    # CORE dedents/expands tabs (inspect.cleandoc), then renders
+                    # with Mako; <%text> keeps the content literal.
+                    if "\t" in body or "</%text>" in body:
+                        sys.exit(f"{n['name']}: {f} has a tab or </%text>, CORE would alter it")
                     cdata.append(f"<%text>{body}</%text>")
                     ET.SubElement(templates, "template", name=f).text = f"@CDATA{len(cdata)}@"
             if len(cfg):
@@ -216,14 +217,14 @@ def convert(text, rj45=None):
             i = iface(tag, *end)
             if i is not None:
                 el.append(i)
-        opts = {LINK_OPTIONS[k]: link[k] for k in LINK_OPTIONS if k in link}
+        opts = {k: link[k] for k in LINK_OPTIONS if k in link}
         if opts:
             ET.SubElement(el, "options", opts)
 
     ET.indent(scenario)
     xml = ET.tostring(scenario, encoding="unicode", xml_declaration=True) + "\n"
-    for i, text in enumerate(cdata, 1):
-        xml = xml.replace(f"@CDATA{i}@", "<![CDATA[" + text.replace("]]>", "]]]]><![CDATA[>") + "]]>", 1)
+    for i, t in enumerate(cdata, 1):
+        xml = xml.replace(f"@CDATA{i}@", "<![CDATA[" + t.replace("]]>", "]]]]><![CDATA[>") + "]]>", 1)
     return xml
 
 

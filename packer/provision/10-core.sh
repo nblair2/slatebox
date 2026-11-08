@@ -23,7 +23,7 @@ export UV_PYTHON_INSTALL_DIR=/opt/core/python UV_CACHE_DIR=$tmp/cache
 "$tmp/uv" pip install --python /opt/core/venv/bin/python /opt/core/core-"$CORE_VERSION"-*.whl
 
 # The rest of the deb's after-install step.
-sed -i 's|\$DAEMON|/opt/core/venv/bin/core-daemon|' /usr/lib/systemd/system/core-daemon.service
+sed -i 's|[$]DAEMON|/opt/core/venv/bin/core-daemon|' /usr/lib/systemd/system/core-daemon.service
 ln -sf /opt/core/venv/bin/core-* /usr/bin/
 
 sed -i 's|^#\?custom_services_dir *=.*|custom_services_dir = /usr/share/slatebox/core_services|' /opt/core/etc/core.conf

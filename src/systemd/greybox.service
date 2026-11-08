@@ -8,7 +8,8 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/sbin/greybox-ctl start
 ExecStop=/usr/sbin/greybox-ctl stop
-TimeoutStartSec=15min
+# 69 routers take minutes to boot (much longer under TCG)
+TimeoutStartSec=infinity
 
 [Install]
 WantedBy=multi-user.target
