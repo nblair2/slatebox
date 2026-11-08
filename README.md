@@ -155,7 +155,8 @@ New files:
 | `src/core_services/` | A generic CORE 9 `UserDefined` service (CORE 9 removed it), driven by the maps' own `dirs`/`files`/`cmdup`/`cmddown`. |
 | `src/sbin/greybox-ctl` | Starts, stops and inspects the session over CORE's gRPC API. |
 | `src/sbin/topgen-ca.sh`, `topgen-add-crl.sh`, `topgen-fetch-content.sh` | PKI and content tools. |
-| `src/systemd/` | A new `greybox.service`, and `/usr/lib/frr` on core-daemon's `PATH`. |
+| `src/systemd/greybox.service` | Starts the map at boot. |
+| `src/frr-shim` | Lets CORE 9.2's FRR service drive FRR 10 (see Notes). |
 
 ## Repository layout
 
@@ -179,4 +180,7 @@ tests/                     test_pki.sh, pytest converter tests, smoke.sh (boots 
   removes both.
 - The host's own `frr`, `nginx`, `named`, `postfix`, `dovecot`, `tor` and `isc-dhcp-server` units
   are disabled, because these daemons run inside CORE nodes.
+- **FRR 10:** CORE 9.2.1's `frrboot.sh` predates FRR 10. `src/frr-shim`, linked as
+  `/usr/local/sbin/{zebra,bgpd,staticd,...}`, starts `mgmtd` (needed for static routes), drops
+  `-f` for `staticd`, and detaches the daemons' stdout so CORE doesn't wait on them forever.
 - `topgen-tor.sh` is installed but not used, because the backbone map has no Tor network.

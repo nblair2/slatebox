@@ -51,6 +51,13 @@ install -m 0644 "$GB/etc/profile.d_greybox.sh" /etc/profile.d/greybox.sh
 # slatebox
 install -m 0755 -t /usr/sbin "$REPO"/src/sbin/*
 install -m 0644 -D -t /usr/share/slatebox "$REPO/src/imn2xml.py"
+# FRR 10 behind CORE 9.2's frrboot.sh: the shim is found first (/usr/local/sbin),
+# and with no host /etc/frr/frr.conf frrboot.sh links it to each node's own file.
+install -m 0755 "$REPO/src/frr-shim" /usr/share/slatebox/frr-shim
+for d in zebra staticd bgpd ospfd ospf6d ripd ripngd babeld pimd; do
+  ln -sfn /usr/share/slatebox/frr-shim "/usr/local/sbin/$d"
+done
+rm -f /etc/frr/frr.conf /etc/frr/vtysh.conf
 rm -rf /usr/share/slatebox/core_services
 cp -r "$REPO/src/core_services" /usr/share/slatebox/core_services
 cp -r "$REPO/src/systemd/." /usr/lib/systemd/system/

@@ -27,7 +27,8 @@ apt_get install \
   isc-dhcp-server iodine tayga thc-ipv6 ethtool nftables tcpdump \
   traceroute curl patch psmisc procps tk libtk-img libev4t64
 
-# In greybox these daemons run inside the CORE topgen.info node, not on the host.
-for u in frr nginx named postfix dovecot tor isc-dhcp-server isc-dhcp-server6 tayga iodined; do
+# In greybox these daemons run inside CORE nodes, not on the host.
+# (networkd-dispatcher would re-run on each of the map's ~800 interfaces.)
+for u in frr nginx named postfix dovecot tor isc-dhcp-server isc-dhcp-server6 tayga iodined networkd-dispatcher; do
   systemctl disable --now "$u.service" || true
 done

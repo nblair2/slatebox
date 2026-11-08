@@ -1,0 +1,11 @@
+#!/bin/sh
+# Shim between CORE 9.2's frrboot.sh (written for FRR <= 8) and FRR 10:
+#  - FRR 10 daemons keep stdout open after -d, so CORE waits on them forever;
+#  - static routes need mgmtd (not started by frrboot.sh), and mgmtd/staticd
+#    no longer accept -f (their config arrives via mgmtd from "vtysh -b").
+d=$(basename "$0")
+case $d in
+  zebra) /usr/lib/frr/mgmtd -d </dev/null >/dev/null 2>&1 ;;
+  staticd) set -- -d ;;
+esac
+exec "/usr/lib/frr/$d" "$@" </dev/null >/dev/null 2>&1
