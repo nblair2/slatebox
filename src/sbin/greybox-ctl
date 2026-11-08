@@ -1,0 +1,81 @@
+#!/opt/core/venv/bin/python
+"""Run the greybox map as a CORE session.
+
+usage: greybox-ctl start [map.xml] | stop | status | exec <node-name> <cmd...>
+"""
+import sys
+import time
+from pathlib import Path
+
+import grpc
+from core.api.grpc.client import CoreGrpcClient
+from core.api.grpc.wrappers import SessionState
+
+DEFAULT_MAP = "/etc/greybox/map.xml"
+SID_FILE = Path("/run/greybox.sid")
+
+
+def connect(timeout=120):
+    """Client for core-daemon, waiting for it to accept requests."""
+    client = CoreGrpcClient()
+    client.connect()
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            client.get_sessions()
+            return client
+        except grpc.RpcError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(1)
+
+
+def session(client):
+    if not SID_FILE.exists():
+        sys.exit("greybox: no session (not started)")
+    return client.get_session(int(SID_FILE.read_text()))
+
+
+def start(path=DEFAULT_MAP):
+    client = connect()
+    _, sid = client.open_xml(Path(path).resolve(), start=True)
+    SID_FILE.write_text(f"{sid}\n")
+    state = client.get_session(sid).state
+    print(f"greybox: session {sid} {state.name}")
+    if state != SessionState.RUNTIME:
+        sys.exit("greybox: some node services failed to boot (see core-daemon log)")
+
+
+def stop():
+    if SID_FILE.exists():
+        client = connect()
+        sid = int(SID_FILE.read_text())
+        client.stop_session(sid)
+        client.delete_session(sid)
+        SID_FILE.unlink()
+
+
+def status():
+    s = session(connect())
+    print(f"greybox: session {s.id} {s.state.name}, {len(s.nodes)} nodes, {s.file}")
+    if s.state != SessionState.RUNTIME:
+        sys.exit(1)
+
+
+def exec_(name, *cmd):
+    client = connect()
+    s = session(client)
+    node = next((n for n in s.nodes.values() if n.name == name), None)
+    if node is None:
+        sys.exit(f"greybox: no node named {name}")
+    code, output = client.node_command(s.id, node.id, " ".join(cmd), shell=True)
+    print(output)
+    sys.exit(code)
+
+
+COMMANDS = {"start": start, "stop": stop, "status": status, "exec": exec_}
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
+        sys.exit(__doc__.strip())
+    COMMANDS[sys.argv[1]](*sys.argv[2:])

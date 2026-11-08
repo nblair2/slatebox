@@ -1,0 +1,14 @@
+[Unit]
+Description=Greybox CORE session (/etc/greybox/map.xml)
+Requires=core-daemon.service
+After=core-daemon.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/greybox-ctl start
+ExecStop=/usr/sbin/greybox-ctl stop
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=multi-user.target
