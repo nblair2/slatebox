@@ -37,7 +37,8 @@ ln -sfn "$VARLIB/etc/nginx.conf" /etc/nginx/conf.d/topgen.conf
 rm -f /etc/nginx/sites-enabled/default
 
 # named (also inside CORE nodes) must read the generated zones and config.
-echo "$VARLIB/** r," >/etc/apparmor.d/local/usr.sbin.named
+# (/run/named is created afresh in each CORE node's private /run.)
+printf '%s\n' "$VARLIB/** r," "/run/named/ rw," >/etc/apparmor.d/local/usr.sbin.named
 if aa-enabled --quiet 2>/dev/null; then
   apparmor_parser -r /etc/apparmor.d/usr.sbin.named
 fi

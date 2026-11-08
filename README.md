@@ -144,8 +144,10 @@ The upstream trees in `vendor/` are never edited. `install.sh` copies them and a
   - `0005-dovecot-2.4`: rewrites the generated `dovecot.conf` for Dovecot 2.4 (IMAP only).
   - `0006-vmail-ca-certs`: the mail server certificates are issued by the TopGen CA instead of
     being self-signed.
+  - `0007-postfix-compat`: sets `compatibility_level = 2`, as Fedora's stock `main.cf` does.
 - `patches/greybox/0001-topgenboot-ubuntu`: `TopGenBoot.sh` fixes in the maps for Ubuntu
-  (`named -u bind`, `/var/cache/bind/data`).
+  (`named -u bind`, `/var/cache/bind/data`, and dovecot started with its output detached
+  so CORE doesn't wait on it).
 
 New files:
 

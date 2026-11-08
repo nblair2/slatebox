@@ -1,11 +1,11 @@
 Ubuntu: named runs as user bind, and the (patched) topgen named.conf keeps its
 data in /var/cache/bind/data, which must be private to the topgen.info node.
+dovecot keeps the stderr it was started with open, and CORE waits for that
+pipe to close before the session can finish starting.
 
-diff --git a/share/maps/backbone.imn b/share/maps/backbone.imn
-index 4721e32..f66d8ac 100644
---- a/share/maps/backbone.imn
-+++ b/share/maps/backbone.imn
-@@ -9786,7 +9786,7 @@ node n301 {
+--- a/share/maps/backbone.imn	2026-11-08 19:18:08.022654242 +0000
++++ b/share/maps/backbone.imn	2026-11-08 19:18:08.029833749 +0000
+@@ -9786,7 +9786,7 @@
  	custom-config-id service:UserDefined
  	custom-command UserDefined
  	config {
@@ -14,7 +14,7 @@ index 4721e32..f66d8ac 100644
  	files=('TopGenBoot.sh',)
  	cmdup=('sh TopGenBoot.sh start',)
  	cmddown=('sh TopGenBoot.sh stop',)
-@@ -9809,7 +9809,7 @@ node n301 {
+@@ -9809,13 +9809,13 @@
  	    /usr/sbin/ip addr add $i scope global dev lo
  	  done
  	  [ -s /var/lib/topgen/etc/named.conf ] && \
@@ -23,11 +23,16 @@ index 4721e32..f66d8ac 100644
  	  [ -s /var/lib/topgen/etc/nginx.conf ] && \
  	    /usr/sbin/nginx
  	  [ -s /var/lib/topgen/etc/postfix/main.cf ] && \
-diff --git a/share/maps/backbone_ext.imn b/share/maps/backbone_ext.imn
-index 3df274e..8c0d512 100644
---- a/share/maps/backbone_ext.imn
-+++ b/share/maps/backbone_ext.imn
-@@ -9819,7 +9819,7 @@ node n301 {
+ 	    /usr/sbin/postfix -c /var/lib/topgen/etc/postfix start
+ 	  [ -s /var/lib/topgen/etc/postfix/dovecot.conf ] && \
+-	    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf
++	    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf </dev/null >/dev/null 2>&1
+ 	}
+ 
+ 	stop() {
+--- a/share/maps/backbone_ext.imn	2026-11-08 19:18:08.022729112 +0000
++++ b/share/maps/backbone_ext.imn	2026-11-08 19:18:08.034555656 +0000
+@@ -9819,7 +9819,7 @@
  	custom-config-id service:UserDefined
  	custom-command UserDefined
  	config {
@@ -36,7 +41,7 @@ index 3df274e..8c0d512 100644
  	files=('TopGenBoot.sh',)
  	cmdup=('sh TopGenBoot.sh start',)
  	cmddown=('sh TopGenBoot.sh stop',)
-@@ -9842,7 +9842,7 @@ node n301 {
+@@ -9842,13 +9842,13 @@
  	    /usr/sbin/ip addr add $i scope global dev lo
  	  done
  	  [ -s /var/lib/topgen/etc/named.conf ] && \
@@ -45,3 +50,10 @@ index 3df274e..8c0d512 100644
  	  [ -s /var/lib/topgen/etc/nginx.conf ] && \
  	    /usr/sbin/nginx
  	  [ -s /var/lib/topgen/etc/postfix/main.cf ] && \
+ 	    /usr/sbin/postfix -c /var/lib/topgen/etc/postfix start
+ 	  [ -s /var/lib/topgen/etc/postfix/dovecot.conf ] && \
+-	    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf
++	    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf </dev/null >/dev/null 2>&1
+ 	}
+ 
+ 	stop() {

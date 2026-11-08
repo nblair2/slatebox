@@ -16,8 +16,12 @@ fi
 
 apt_get() { apt-get -y -o DPkg::Lock::Timeout=600 "$@"; }
 
-# postfix: no debconf-generated config; topgen supplies its own.
-echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
+# postfix: "Local only" so the package creates /etc/aliases(.db), which the
+# topgen main.cf still uses; the host's own postfix is disabled below.
+debconf-set-selections <<EOT
+postfix postfix/main_mailer_type select Local only
+postfix postfix/mailname string slatebox.topgen.info
+EOT
 
 apt_get update
 apt_get full-upgrade

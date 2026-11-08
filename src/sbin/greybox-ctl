@@ -3,6 +3,7 @@
 
 usage: greybox-ctl start [map.xml] | stop | status | exec <node-name> <cmd...>
 """
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -69,7 +70,7 @@ def exec_(name, *cmd):
     node = next((n for n in s.nodes.values() if n.name == name), None)
     if node is None:
         sys.exit(f"greybox: no node named {name}")
-    code, output = client.node_command(s.id, node.id, " ".join(cmd), shell=True)
+    code, output = client.node_command(s.id, node.id, shlex.join(cmd), shell=True)
     print(output)
     sys.exit(code)
 
