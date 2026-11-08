@@ -1,0 +1,60 @@
+diff --git a/sbin/topgen-vmail.sh b/sbin/topgen-vmail.sh
+index dda9ab0..ca3667a 100755
+--- a/sbin/topgen-vmail.sh
++++ b/sbin/topgen-vmail.sh
+@@ -239,33 +239,44 @@ cat > $VMAIL_CFGDIR/main.cf <<- EOT
+ 	EOT
+ 
+ cat > $VMAIL_CFGDIR/dovecot.conf <<- EOT
++	dovecot_config_version = 2.4.0
++	dovecot_storage_version = 2.4.0
++
++	protocols = imap
+ 	log_path = /var/log/dovecot.log
+ 	mbox_write_locks = fcntl
+ 
+ 	ssl = required
+-	ssl_cert = <$VMAIL_CFGDIR/dc_tls.cer
+-	ssl_key = <$VMAIL_CFGDIR/dc_tls.key
++	ssl_server_cert_file = $VMAIL_CFGDIR/dc_tls.cer
++	ssl_server_key_file = $VMAIL_CFGDIR/dc_tls.key
+ 
+ 	auth_mechanisms = plain login cram-md5
+ 
+ 	# set domain based on local IP used by client:
+-	passdb {
++	passdb addr_dom {
+ 	  driver = passwd-file
+-	  args = username_format=%l $VMAIL_CFGDIR/dc_addr_dom
++	  passwd_file_path = $VMAIL_CFGDIR/dc_addr_dom
++	  auth_username_format = %{local_ip}
+ 	  result_success = continue
+ 	}
+ 
+-	passdb {
++	passdb usr_pass {
+ 	  driver = passwd-file
+-	  args = $VMAIL_CFGDIR/dc_usr_pass
++	  passwd_file_path = $VMAIL_CFGDIR/dc_usr_pass
+ 	}
+ 
+ 	# match postfix location:
+-	mail_location = maildir:$VMAIL_MBOXDIR/%d/%n
+-
+-	userdb {
+-	  driver = static
+-	  args = uid=dovenull gid=dovenull home=$VMAIL_MBOXDIR/%d/%n
++	mail_driver = maildir
++	mail_path = $VMAIL_MBOXDIR/%{user | domain}/%{user | username}
++
++	# (dovenull is a system account, below the default first_valid_uid)
++	first_valid_uid = ${DOVENULL_ID%:*}
++	userdb static {
++	  fields {
++	    uid = dovenull
++	    gid = dovenull
++	    home = $VMAIL_MBOXDIR/%{user | domain}/%{user | username}
++	  }
+ 	}
+ 
+ 	# auth service available to postfix

@@ -1,0 +1,110 @@
+diff --git a/sbin/topgen-scrape.sh b/sbin/topgen-scrape.sh
+index e367ce3..d1fa8ff 100755
+--- a/sbin/topgen-scrape.sh
++++ b/sbin/topgen-scrape.sh
+@@ -76,6 +76,7 @@ $USAGE_BLURB
+ }
+ 
+ # once $TOPGEN_VARLIB is set, these are its relevant subdirectories:
++export TOPGEN_VARLIB # for topgen-ca.sh
+ TOPGEN_VARETC="$TOPGEN_VARLIB/etc"
+ TOPGEN_CERTS="$TOPGEN_VARLIB/certs"
+ TOPGEN_VHOSTS="$TOPGEN_VARLIB/vhosts"
+@@ -186,66 +187,16 @@ comm -12 <(ls -1 $TOPGEN_VHOSTS) \
+ # NOTE: hand-crafted vhosts should manually be added to $TOPGEN_VHOSTS here!
+ 
+ # generate TopGen CA (unless already provided):
+-[ -s "$TOPGEN_VARETC/topgen_ca.key" -a -s "$TOPGEN_VARETC/topgen_ca.cer" ] ||
+-  openssl req -newkey rsa:2048 -nodes -keyout "$TOPGEN_VARETC/topgen_ca.key" \
+-              -days 7300 -x509 -out "$TOPGEN_VARETC/topgen_ca.cer" \
+-              -subj '/C=US/ST=PA/L=Pgh/O=CMU/OU=CERT/CN=topgen_ca' \
+-              2>/dev/null
+-# ... and place a copy in $TOPGEN_SITE:
++topgen-ca.sh init || exit 1
++# ... and place a copy (and the external CA chain, if any) in $TOPGEN_SITE:
+ cp "$TOPGEN_VARETC/topgen_ca.cer" "$TOPGEN_SITE"
++[ -s "$TOPGEN_VARETC/topgen_ca_chain.pem" ] &&
++  cp "$TOPGEN_VARETC/topgen_ca_chain.pem" "$TOPGEN_SITE"
+ 
+ # generate TopGen vhost key (unless already provided):
+ [ -s "$TOPGEN_VARETC/topgen_vh.key" ] ||
+   openssl genrsa -out "$TOPGEN_VARETC/topgen_vh.key" 2048 2>/dev/null
+ 
+-# create CA configuration (file and /tmp directory structure):
+-TMP_CA_DIR=$(mktemp -d /tmp/TopGenCA.XXXXXXXXXXXXXX)
+-echo "000a" > "$TMP_CA_DIR/serial" # seed the serial file
+-touch "$TMP_CA_DIR/index" # empty (but required) index file
+-
+-# CA configuration file:
+-TMP_CA_CONF="[ ca ]
+-default_ca = topgen_ca
+-
+-[ crl_ext ]
+-authorityKeyIdentifier=keyid:always
+-
+-[ topgen_ca ]
+-private_key = $TOPGEN_VARETC/topgen_ca.key
+-certificate = $TOPGEN_VARETC/topgen_ca.cer
+-new_certs_dir = $TMP_CA_DIR
+-database = $TMP_CA_DIR/index
+-serial = $TMP_CA_DIR/serial
+-default_days = 3650
+-default_md = sha512
+-copy_extensions = copy
+-unique_subject = no
+-policy = topgen_ca_policy
+-x509_extensions = topgen_ca_ext
+-
+-[ topgen_ca_policy ]
+-countryName = supplied
+-stateOrProvinceName = supplied
+-localityName = supplied
+-organizationName = supplied
+-organizationalUnitName = supplied
+-commonName = supplied
+-emailAddress = optional
+-
+-[ topgen_ca_ext ]
+-basicConstraints = CA:false
+-nsCertType = server
+-nsComment = \"TopGen CA Generated Certificate\"
+-subjectKeyIdentifier = hash
+-authorityKeyIdentifier = keyid,issuer:always
+-"
+-
+-# per-vhost CSR configuration template:
+-# (NOTE: using [alt_names] to work around CN length limit for long hostnames)
+-TMP_VH_CONF=$(sed -e '/req_extensions/s/^# //;
+-                      /^\[ v3_req \]/a subjectAltName = @alt_names' \
+-                  /etc/ssl/openssl.cnf)
+-
+ # start nginx.conf here (vhost entries to be appended from loop below)
+ cat > "$TOPGEN_VARETC/nginx.conf" <<- EOT
+ 	# use a common key for all certificates:
+@@ -263,15 +214,9 @@ rm -f "$TOPGEN_VARETC/hosts.nginx"
+ for VH in $TOPGEN_VHOSTS/*; do
+   VB=${VH##*/} # basename
+ 
+-  # issue certificate (based on csr generated on-the-fly):
+-  openssl ca -batch -notext \
+-          -config <(echo "$TMP_CA_CONF") -out "$TOPGEN_CERTS/$VB.cer" \
+-          -in <(openssl req -new -key "$TOPGEN_VARETC/topgen_vh.key" \
+-                        -subj '/C=US/ST=PA/L=Pgh/O=CMU/OU=CERT/CN=topgen_vh' \
+-                        -config <(echo "$TMP_VH_CONF"
+-                                  echo -e "[alt_names]\nDNS.1 = $VB") \
+-                        2>/dev/null) \
+-          2>/dev/null
++  # issue certificate (recorded in the persistent TopGen CA database):
++  topgen-ca.sh issue "$TOPGEN_VARETC/topgen_vh.key" "$TOPGEN_CERTS/$VB.cer" "$VB" ||
++    exit 1
+ 
+   # append vhost https block to nginx.conf file:
+   cat >> "$TOPGEN_VARETC/nginx.conf" <<- EOT
+@@ -291,5 +236,5 @@ for VH in $TOPGEN_VHOSTS/*; do
+   echo "${VHIP:-1.1.1.1} $VB" >> "$TOPGEN_VARETC/hosts.nginx"
+ done
+ 
+-# done with CA directory:
+-rm -rf "$TMP_CA_DIR"
++# publish the CRL (as $TOPGEN_SITE/topgen_ca.crl):
++topgen-ca.sh gencrl

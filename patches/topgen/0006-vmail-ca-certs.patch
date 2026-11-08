@@ -1,0 +1,30 @@
+diff --git a/sbin/topgen-vmail.sh b/sbin/topgen-vmail.sh
+index ca3667a..2fb6258 100755
+--- a/sbin/topgen-vmail.sh
++++ b/sbin/topgen-vmail.sh
+@@ -81,6 +81,7 @@ $USAGE_BLURB
+ }
+ 
+ # once $TOPGEN_VARLIB is set, these are its relevant subdirectories:
++export TOPGEN_VARLIB # for topgen-ca.sh
+ VMAIL_CFGDIR="$TOPGEN_VARLIB/etc/postfix"
+ VMAIL_MBOXDIR="$TOPGEN_VARLIB/vmail"
+ VMAIL_HOSTFILE="$TOPGEN_VARLIB/etc/hosts.vmail"
+@@ -335,12 +336,11 @@ N
+ #       out SELinux labeling (since postfix wants postfix_etc_t and dovecot
+ #       wants dovecot_etc_t, and right now one can't read files labeled for
+ #       the other !!!
+-openssl req -subj '/C=US/ST=PA/L=Pgh/O=CMU/OU=CERT/CN=smtp.topgen.info' \
+-            -newkey rsa:2048 -nodes -keyout $VMAIL_CFGDIR/pf_tls.key \
+-            -days 7300 -x509 -out $VMAIL_CFGDIR/pf_tls.cer 2>/dev/null
+-openssl req -subj '/C=US/ST=PA/L=Pgh/O=CMU/OU=CERT/CN=imap.topgen.info' \
+-            -newkey rsa:2048 -nodes -keyout $VMAIL_CFGDIR/dc_tls.key \
+-            -days 7300 -x509 -out $VMAIL_CFGDIR/dc_tls.cer 2>/dev/null
++# (certs are issued by the TopGen CA, which must exist: see topgen-ca.sh)
++topgen-ca.sh issue $VMAIL_CFGDIR/pf_tls.key $VMAIL_CFGDIR/pf_tls.cer \
++             smtp.topgen.info || exit 1
++topgen-ca.sh issue $VMAIL_CFGDIR/dc_tls.key $VMAIL_CFGDIR/dc_tls.cer \
++             imap.topgen.info || exit 1
+ 
+ # FIXME: Sort out SELinux policy associated with topgen package !!!
+ # But, for now, let's label the relevant files and folders manually:
