@@ -28,6 +28,6 @@ apt_get install \
   traceroute curl patch psmisc procps tk libtk-img libev4t64
 
 # In greybox these daemons run inside the CORE topgen.info node, not on the host.
-for u in frr nginx named postfix dovecot tor isc-dhcp-server isc-dhcp-server6; do
+for u in frr nginx named postfix dovecot tor isc-dhcp-server isc-dhcp-server6 tayga iodined; do
   systemctl disable --now "$u.service" || true
 done

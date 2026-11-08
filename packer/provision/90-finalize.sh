@@ -4,7 +4,8 @@ set -euo pipefail
 
 # greybox README: the host (and every CORE node) resolves via 8.8.8.8, which
 # lives inside the simulated Internet. Done last; earlier steps need real DNS.
-systemctl mask --now systemd-resolved.service
+# A static file replaces the resolved stub link (nsswitch uses plain "dns", and
+# resolved keeps running for systemd-networkd-wait-online).
 rm -f /etc/resolv.conf
 echo "nameserver 8.8.8.8" >/etc/resolv.conf
 grep -qw "$(hostname)" /etc/hosts || echo "127.0.1.1 $(hostname)" >>/etc/hosts
