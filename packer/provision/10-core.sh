@@ -2,7 +2,7 @@
 # CORE daemon: the release .deb (without its Python step) plus a venv built on a
 # uv-managed CPython, because the distro Python is too new for CORE's pins.
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive UV_NATIVE_TLS=1
+export DEBIAN_FRONTEND=noninteractive UV_SYSTEM_CERTS=1
 CORE_VERSION=${CORE_VERSION:-9.2.1}
 CORE_PYTHON=${CORE_PYTHON:-3.12}
 UV_VERSION=${UV_VERSION:-0.11.32}
@@ -17,7 +17,8 @@ NO_PYTHON=1 apt-get -y -o DPkg::Lock::Timeout=600 install "$deb"
 # uv is only needed at build time.
 wget -qO- "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-x86_64-unknown-linux-gnu.tar.gz" |
   tar -xz -C "$tmp" --strip-components=1
-export UV_PYTHON_INSTALL_DIR=/opt/core/python UV_CACHE_DIR=$tmp/cache
+export UV_PYTHON_INSTALL_DIR=/opt/core/python UV_PYTHON_BIN_DIR=$tmp/bin \
+  UV_CACHE_DIR=$tmp/cache UV_LINK_MODE=copy
 "$tmp/uv" python install "$CORE_PYTHON"
 "$tmp/uv" venv --allow-existing --python "$CORE_PYTHON" /opt/core/venv
 "$tmp/uv" pip install --python /opt/core/venv/bin/python /opt/core/core-"$CORE_VERSION"-*.whl

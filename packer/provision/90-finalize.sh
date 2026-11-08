@@ -4,7 +4,7 @@ set -euo pipefail
 
 # greybox README: the host (and every CORE node) resolves via 8.8.8.8, which
 # lives inside the simulated Internet. Done last; earlier steps need real DNS.
-systemctl disable --now systemd-resolved.service
+systemctl mask --now systemd-resolved.service
 rm -f /etc/resolv.conf
 echo "nameserver 8.8.8.8" >/etc/resolv.conf
 grep -qw "$(hostname)" /etc/hosts || echo "127.0.1.1 $(hostname)" >>/etc/hosts
