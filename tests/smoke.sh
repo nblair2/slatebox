@@ -57,4 +57,13 @@ check "https://$VHOST/ (TopGen CA)" \
 check "CRL from topgen.info" \
   node "curl -sf http://topgen.info/topgen_ca.crl | openssl crl -inform DER -noout"
 
+# First mail domain and user from vmail.cfg ("<host> <ip> user:pass ...").
+read -r _ MIP CRED _ < <(vm "grep -v '^#' /etc/topgen/vmail.cfg | grep . | head -1")
+check "IMAPS login ${CRED%%:*}@$MIP" \
+  node "curl -sf --cacert /var/lib/topgen/etc/topgen_ca.cer \
+        --resolve imap.topgen.info:993:$MIP --user $CRED imaps://imap.topgen.info/"
+check "SMTP banner on $MIP" \
+  node "curl -sf --ssl-reqd --cacert /var/lib/topgen/etc/topgen_ca.cer \
+        --resolve smtp.topgen.info:587:$MIP --user $CRED smtp://smtp.topgen.info:587/ -X NOOP"
+
 exit $FAIL
