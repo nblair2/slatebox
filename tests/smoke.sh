@@ -38,7 +38,7 @@ retry() { # retry <tries> <cmd...>: wait for something to come up
 
 echo "waiting for ssh on port $PORT ..."
 retry 180 vm true || { echo "FAIL: ssh"; exit 1; }
-retry 60 vm "systemctl is-active greybox.service"
+retry 360 vm "systemctl is-active greybox.service"  # up to 1h (TCG)
 
 check "greybox.service active" vm "systemctl is-active greybox.service"
 check "greybox-ctl status" vm "greybox-ctl status"
