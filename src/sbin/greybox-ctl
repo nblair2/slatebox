@@ -15,19 +15,22 @@ DEFAULT_MAP = "/etc/greybox/map.xml"
 SID_FILE = Path("/run/greybox.sid")
 
 
-def connect(timeout=120):
+def connect(timeout=600):
     """Client for core-daemon, waiting for it to accept requests."""
-    client = CoreGrpcClient()
-    client.connect()
     deadline = time.monotonic() + timeout
     while True:
+        # a fresh channel each try: one created before the daemon listens can
+        # stay stuck in reconnect backoff
+        client = CoreGrpcClient()
+        client.connect()
         try:
             client.get_sessions()
             return client
         except grpc.RpcError:
+            client.close()
             if time.monotonic() > deadline:
                 raise
-            time.sleep(1)
+            time.sleep(2)
 
 
 def session(client):
