@@ -145,14 +145,14 @@ The upstream trees in `vendor/` are never edited. `install.sh` copies them and a
   - `0006-vmail-ca-certs`: the mail server certificates are issued by the TopGen CA instead of
     being self-signed.
 - `patches/greybox/0001-topgenboot-ubuntu`: `TopGenBoot.sh` fixes in the maps for Ubuntu
-  (`named -u bind`, nginx and postfix paths).
+  (`named -u bind`, `/var/cache/bind/data`).
 
 New files:
 
 | File | What it does |
 |---|---|
 | `src/imn2xml.py` | Converts legacy `.imn` maps to CORE 9 XML. |
-| `src/core_services/` | CORE 9 services that replace `UserDefined` (Keepalived, TopGen). |
+| `src/core_services/` | A generic CORE 9 `UserDefined` service (CORE 9 removed it), driven by the maps' own `dirs`/`files`/`cmdup`/`cmddown`. |
 | `src/sbin/greybox-ctl` | Starts, stops and inspects the session over CORE's gRPC API. |
 | `src/sbin/topgen-ca.sh`, `topgen-add-crl.sh`, `topgen-fetch-content.sh` | PKI and content tools. |
 | `src/systemd/` | A new `greybox.service`, and `/usr/lib/frr` on core-daemon's `PATH`. |
