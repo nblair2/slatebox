@@ -4,6 +4,6 @@ set -euo pipefail
 args=()
 for m in $RJ45_IFACES; do args+=(--rj45 "$m"); done
 mkdir -p /etc/greybox
-python3 /usr/share/slatebox/imn2xml.py "${args[@]}" \
-  "/usr/share/greybox/maps/$MAP.imn" -o /etc/greybox/map.xml
+python3 /usr/share/slatebox/imn2xml.py \
+  "/usr/share/greybox/maps/$MAP.imn" /etc/greybox/map.xml "${args[@]}"
 systemctl enable greybox.service

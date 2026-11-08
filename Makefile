@@ -19,7 +19,7 @@ maps:
 	  [ ! -e "$$p" ] || patch -d build/greybox -p1 -s < "$$p" || exit 1; \
 	done
 	for m in build/greybox/share/maps/*.imn; do \
-	  python3 src/imn2xml.py "$$m" -o build/maps/$$(basename "$$m" .imn).xml || echo "skipped $$m"; \
+	  python3 src/imn2xml.py "$$m" build/maps/$$(basename "$$m" .imn).xml || echo "skipped $$m"; \
 	done
 
 clean:
