@@ -34,7 +34,7 @@ Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 | `ext_iface` | `ens4` | NIC connected to the simulated network |
 | `scrape_sites` | `["https://www.cmu.edu"]` | Websites to mirror |
 | `scrape_depth` | `1` | Crawl depth |
-| `scrape_timeout` | `60m` | Limit per site; partial mirrors are kept |
+| `scrape_timeout` | `60m` | Limit for the whole scrape; partial mirrors are kept |
 | `scrape_jobs` | `8` | Parallel goscrape processes; lower it to be gentler on mirrored sites |
 | `overlay_dir` | `""` | Directory copied onto `/` before the CA, scrape and mail setup |
 
@@ -71,7 +71,8 @@ BIND9 provides simulated root, TLD and caching servers; clients and the VM resol
 ### Web
 
 nginx serves the build-time website mirrors over HTTPS. `https://topgen.info/` lists them.
-Choose sites and crawl limits with the `scrape_*` build variables.
+Choose sites and crawl limits with the `scrape_*` build variables. A site whose start page fails
+(e.g. blocked by bot protection) is skipped with a warning; the build fails only if all do.
 
 ### Mail
 
