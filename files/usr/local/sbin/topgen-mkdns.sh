@@ -391,6 +391,9 @@ view "caching" {
 
 	recursion yes;
 	dnssec-validation no;
+	/* no built-in empty zones (10.in-addr.arpa etc.): in-game PTRs for
+	   RFC 1918 addresses live on the tld servers, reached from the root */
+	empty-zones-enable no;
 
 	zone "." IN {
 		type hint;

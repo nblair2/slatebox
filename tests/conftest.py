@@ -216,7 +216,7 @@ journalctl -k --no-pager | grep -i denied | grep -Ev "$BENIGN" | tail -50
 greybox-ctl status; cat /etc/default/greybox; ip -br link | head -20; ip -s link show ens4
 cat /var/lib/topgen/etc/hosts.nginx
 greybox-ctl exec topgen.info ps -ef
-greybox-ctl exec topgen.info tail -50 /var/log/dovecot.log /var/log/nginx/error.log
+greybox-ctl exec topgen.info tail -n 50 /var/log/dovecot.log /var/log/nginx/error.log
 journalctl -b --no-pager -t named | tail -50
 greybox-ctl exec iap1-rtr.disa.mil sh -c 'ps -ef | grep [d]hcpd; ip -br addr'
 greybox-ctl exec iap4-rtr.disa.mil vtysh -c 'show bgp summary'

@@ -58,5 +58,5 @@ def test_mail_crosses_domains(vm):
         time.sleep(3)
     pytest.fail(
         f"not in {u2}@{d2}'s INBOX after 30 s: {r.out}\n"
-        + vm.node("topgen.info", "tail -20 /var/log/mail.log /var/log/dovecot.log").out
+        + vm.node("topgen.info", "tail -n 20 /var/log/mail.log /var/log/dovecot.log").out
     )
