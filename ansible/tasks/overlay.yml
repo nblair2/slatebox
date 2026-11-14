@@ -1,0 +1,11 @@
+---
+# Copies overlay_dir onto / so a build can replace installed files (e.g.
+# /etc/topgen/vmail.cfg) or supply its own TopGen CA as
+# /var/lib/topgen/etc/topgen_ca.{key,cer} before topgen-ca.sh init runs.
+# No owner is set, so existing files and directories keep theirs (e.g. the
+# dovenull-owned mailbox directory); new ones are owned by root.
+- name: Copy the overlay onto / from {{ overlay_dir }}
+  ansible.builtin.copy:
+    src: "{{ overlay_dir }}/"
+    dest: /
+    mode: preserve

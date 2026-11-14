@@ -16,6 +16,7 @@
     path: "{{ topgen_varlib }}/etc/custom-dns.hosts"
   register: custom_dns
   failed_when: not custom_dns.stat.exists or custom_dns.stat.size > 0
+  when: overlay_dir | length == 0
 
 - name: Check postfix's configuration
   ansible.builtin.command: postfix -c {{ topgen_varlib }}/etc/postfix check

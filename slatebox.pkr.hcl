@@ -59,6 +59,7 @@ build {
         scrape_depth   = var.scrape_depth
         scrape_timeout = var.scrape_timeout
         scrape_jobs    = var.scrape_jobs
+        overlay_dir    = var.overlay_dir == "" ? "" : abspath(var.overlay_dir)
       }),
     ]
   }
