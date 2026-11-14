@@ -100,7 +100,7 @@ The [Makefile](Makefile) wraps the build, test and lint commands:
 | `make install-dev` | Install build/test packages (apt), dev tools, test environment, Git hooks and Packer plugins |
 | `make init` | Install Packer plugins |
 | `make build` | Initialize plugins and build the image |
-| `make test` | Boot and test `IMAGE` (default: `build/image/slatebox.qcow2`) |
+| `make test` | Boot and test `IMAGE` (default: `build/image/slatebox.qc2`) |
 | `make lint` | Run all [prek checks](prek.toml), including Packer validation |
 
 Development requires uv, Packer, Python 3.12+, sudo, the build tools above, `sshpass`, `busybox`,
