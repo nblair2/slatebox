@@ -73,7 +73,8 @@ def test_browser_renders_vhost_from_external_client(ext, vhost, expect, ca_file)
     env = {"PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", Path.home() / ".cache/ms-playwright")}
     r = ext.as_user(f"{sys.executable} {browse} https://{vhost[0]}/ {ca_file} {ca_file.parent}", **env)
     assert r.ok, r.out
-    res = json.loads(r.out.splitlines()[-1])
+    # r.out also has stderr, e.g. sudo's "unable to resolve host" warning
+    res = json.loads(next(line for line in reversed(r.out.splitlines()) if line.startswith("{")))
     (ca_file.parent / "browser.json").write_text(json.dumps(res, indent=1))
     assert "error" not in res, res["error"]
     for name in ("home", "link"):
