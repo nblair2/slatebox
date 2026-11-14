@@ -98,7 +98,7 @@ tests/smoke.sh build/image/slatebox.qcow2
 | `admin_password` | `slatebox` | Password of the `slatebox` login user |
 | `ext_iface` | `ens4` | NIC given to the map's RJ45 node |
 | `scrape_sites` | `["https://www.cmu.edu"]` | Sites mirrored into the image (`http://` or `https://`) |
-| `scrape_depth` | `3` | Link depth per site |
+| `scrape_depth` | `1` | Link depth per site |
 | `scrape_timeout` | `60m` | Time limit per site; a partial mirror is kept |
 
 CORE, uv, Python and goscrape versions (and the download checksums) are pinned in

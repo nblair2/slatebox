@@ -57,7 +57,7 @@ variable "scrape_sites" {
 
 variable "scrape_depth" {
   type        = number
-  default     = 3
+  default     = 1
   description = "link depth per site"
 }
 
