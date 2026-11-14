@@ -120,5 +120,5 @@ id = "packer-validate"
 name = "packer validate"
 language = "system"
 entry = "packer validate ."
-files = '\.pkr\.hcl$'
+files = '\.(pkr\.hcl|pkrtpl)$'
 pass_filenames = false

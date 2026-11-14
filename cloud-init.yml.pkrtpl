@@ -1,0 +1,13 @@
+#cloud-config
+users: []
+chpasswd:
+  expire: false
+  users:
+    - name: root
+      password: ${jsonencode(admin_password)}
+      type: text
+ssh_pwauth: true
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-slatebox.conf
+    content: |
+      PermitRootLogin yes

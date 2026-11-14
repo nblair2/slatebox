@@ -36,6 +36,7 @@ install-dev: init
 	sudo apt-get install -y qemu-system-x86 qemu-utils xorriso sshpass busybox dnsutils libnss3-tools traceroute
 	$(UV) tool install prek
 	$(UV) tool install 'ansible-core>=2.20'
+	ansible-galaxy collection install ansible.posix
 	$(PYTHON) -m venv "$(VENV)"
 	"$(VENV)/bin/python" -m pip install -r tests/requirements.txt
 	"$(VENV)/bin/python" -m playwright install --with-deps --only-shell chromium

@@ -9,18 +9,17 @@
 
 ![slatebox](.media/slatebox.jpg)
 
-A qcow2 image built on Ubuntu 26.04. [CORE](https://github.com/coreemu/core) runs a 69-router
+A qcow2 image built on Ubuntu Server 26.04. [CORE](https://github.com/coreemu/core) runs a 69-router
 FRR/BGP backbone; TopGen supplies DNS, web and mail.
 
 ## Build
 
-Requires Linux/KVM, GNU Make, Packer 1.10+, `ansible-core` 2.20+, `qemu-system-x86`,
-`qemu-utils` and `xorriso`. Packer boots the cloud image; [Ansible](ansible/playbook.yml)
-installs services, generates certificates and mirrors websites.
+Requires Linux/KVM, GNU Make, Packer 1.10+, `ansible-core` 2.20+ with `ansible.posix`,
+`qemu-system-x86`, `qemu-utils` and `xorriso`. Packer boots the cloud image;
+[Ansible](ansible/playbook.yml) installs services, generates certificates and mirrors websites.
 
 ```sh
-make build                                      # build/image/slatebox.qcow2
-make build PACKER_ARGS='-var ext_iface=enp2s0'    # override a Packer variable
+make build PACKER_ARGS='-var ext_iface=enp2s0'
 ```
 
 Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):

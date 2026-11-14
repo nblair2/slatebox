@@ -15,7 +15,6 @@ source "qemu" "slatebox" {
   iso_url          = var.ubuntu_image_url
   iso_checksum     = var.ubuntu_image_checksum
   disk_image       = true
-  format           = "qcow2"
   disk_size        = var.disk_size
   disk_compression = true
   disk_discard     = "unmap"
@@ -29,26 +28,12 @@ source "qemu" "slatebox" {
   # full boot and cloud-init console, kept for CI
   qemuargs = [["-serial", "file:serial-build.log"]]
 
-  # cloud-init NoCloud seed: root logs in with admin_password, over SSH too.
-  # The image keeps these settings; users: [] skips the default "ubuntu" user.
   cd_label = "cidata"
   cd_content = {
     "meta-data" = "instance-id: slatebox-build\nlocal-hostname: slatebox\n"
-    "user-data" = <<-EOF
-      #cloud-config
-      users: []
-      chpasswd:
-        expire: false
-        users:
-          - {name: root, password: "${var.admin_password}", type: text}
-      ssh_pwauth: true
-      write_files:
-        - path: /etc/ssh/sshd_config.d/10-slatebox.conf
-          content: "PermitRootLogin yes\n"
-    EOF
+    "user-data" = templatefile("${path.root}/cloud-init.yml.pkrtpl", { admin_password = var.admin_password })
   }
 
-  communicator     = "ssh"
   ssh_username     = "root"
   ssh_password     = var.admin_password
   ssh_timeout      = "15m"
@@ -60,7 +45,6 @@ build {
 
   provisioner "ansible" {
     playbook_file = "${path.root}/ansible/playbook.yml"
-    use_proxy     = true
     user          = "root"
     use_sftp      = true
     sftp_command  = "/usr/lib/openssh/sftp-server -e"
@@ -68,6 +52,7 @@ build {
       "ANSIBLE_CONFIG=${abspath(path.root)}/ansible/ansible.cfg",
     ]
     extra_arguments = [
+      "--verbose",
       "--extra-vars", jsonencode({
         ext_iface      = var.ext_iface
         scrape_sites   = var.scrape_sites
