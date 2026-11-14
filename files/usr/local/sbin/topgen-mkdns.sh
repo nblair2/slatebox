@@ -179,9 +179,9 @@ done
 
 # we should be left with NO FURTHER arguments on the command line:
 shift $((OPTIND-1))
-[ -z "$@" ] || {
+[ -z "$*" ] || {
   echo "
-ERROR: invalid argument: $@
+ERROR: invalid argument: $*
 
 $USAGE_BLURB
 "
@@ -475,7 +475,7 @@ TLD_ZONE_HDR=$(
 
 
 # verify existence of forward zone, creating it if necessary:
-function ensure_exists_forward
+function ensure_exists_forward {
   if [ ! -s "$TLD_ZD/$1.zone" ]; then
     # create forward zone file, paste generic header:
     echo "$TLD_ZONE_HDR" > $TLD_ZD/$1.zone
@@ -494,10 +494,11 @@ EOT
       echo -e "$1.\tNS\t$NS" >> $ROOT_ZONE
     done
   fi
+}
 
 
 # verify existence of reverse zone, creating it if necessary:
-function ensure_exists_reverse
+function ensure_exists_reverse {
   if [ ! -s "$TLD_ZD/$1.zone" ]; then
     # create reverse zone file, paste generic header:
     echo "$TLD_ZONE_HDR" > $TLD_ZD/$1.zone
@@ -511,6 +512,7 @@ function ensure_exists_reverse
 	};
 EOT
   fi
+}
 
 
 # add A and PTR records for all hosts in $HOSTS_LIST, creating zones if needed:
@@ -608,5 +610,5 @@ Required next steps may include:
     - (re-)start topgen-named service
 "
 
-[ "$QUIET_GEN" == "no" ] && echo "$SUCCESS_BLURB"
+[ "$QUIET_GEN" == "yes" ] || echo "$SUCCESS_BLURB"
 

@@ -71,9 +71,9 @@ done
 
 # we should be left with NO FURTHER arguments on the command line:
 shift $((OPTIND-1))
-[ -z "$@" ] || {
+[ -z "$*" ] || {
   echo "
-ERROR: invalid argument: $@
+ERROR: invalid argument: $*
 
 $USAGE_BLURB
 "
