@@ -1,0 +1,124 @@
+#:schema https://www.schemastore.org/prek.json
+
+exclude = '^LICENSE(?:\.|$)'
+
+# Text hygiene and spelling
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace" },
+  { id = "end-of-file-fixer" },
+  { id = "mixed-line-ending", args = ["--fix=lf"] },
+]
+
+[[repos]]
+repo = "https://github.com/codespell-project/codespell"
+rev = "v2.4.3"
+hooks = [{ id = "codespell" }]
+
+# Repository safety
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "check-merge-conflict" },
+  { id = "check-case-conflict" },
+  { id = "check-added-large-files", args = ["--maxkb=256", "--enforce-all"], exclude = '^\.media/' },
+  { id = "check-executables-have-shebangs" },
+  { id = "check-shebang-scripts-are-executable" },
+  { id = "detect-private-key" },
+]
+
+# Configuration syntax
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "check-yaml" },
+  { id = "check-toml" },
+]
+
+# Greybox map
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id = "check-xml"
+
+[[repos.hooks]]
+id = "require-pattern"
+name = "map.xml has an @EXT_IFACE@ placeholder"
+args = ["@EXT_IFACE@"]
+files = '^files/etc/greybox/map\.xml$'
+
+[[repos.hooks]]
+id = "deny-pattern"
+name = "map.xml has only one @EXT_IFACE@ placeholder"
+args = ["--multiline", "@EXT_IFACE@.*@EXT_IFACE@"]
+files = '^files/etc/greybox/map\.xml$'
+
+[[repos.hooks]]
+id = "deny-pattern"
+name = "map.xml has no tabs"
+args = ['\t']
+files = '^files/etc/greybox/map\.xml$'
+
+# Shell
+[[repos]]
+repo = "https://github.com/shellcheck-py/shellcheck-py"
+rev = "v0.11.0.1"
+
+[[repos.hooks]]
+id = "shellcheck"
+name = "shellcheck (slatebox scripts)"
+exclude = '^files/usr/local/sbin/topgen-(mkdns|vmail)\.sh$'
+
+[[repos.hooks]]
+id = "shellcheck"
+name = "shellcheck -S error (upstream topgen-mkdns.sh, topgen-vmail.sh)"
+args = ["--severity=error"]
+files = '^files/usr/local/sbin/topgen-(mkdns|vmail)\.sh$'
+
+# Python
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.17.5"
+hooks = [
+  { id = "ruff-check" },
+  { id = "ruff-format", types_or = ["python"] },
+]
+
+# Ansible
+[[repos]]
+repo = "https://github.com/ansible/ansible-lint"
+rev = "v26.11.0"
+
+[[repos.hooks]]
+id = "ansible-lint"
+args = ["--offline", "--profile=production", "ansible/"]
+files = "^ansible/"
+always_run = false
+
+# GitHub Actions
+[[repos]]
+repo = "https://github.com/rhysd/actionlint"
+rev = "v1.7.12"
+hooks = [{ id = "actionlint" }]
+
+# Packer
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "packer-fmt"
+name = "packer fmt -check"
+language = "system"
+entry = "packer fmt -check -diff ."
+files = '\.pkr\.hcl$'
+pass_filenames = false
+
+[[repos.hooks]]
+id = "packer-validate"
+name = "packer validate"
+language = "system"
+entry = "packer validate ."
+files = '\.(pkr\.hcl|pkrtpl)$'
+pass_filenames = false

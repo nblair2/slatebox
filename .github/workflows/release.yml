@@ -1,0 +1,31 @@
+name: release
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      RELEASAURUS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASAURUS_REPO: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - name: Publish merged release
+        uses: robgonnella/releasaurus/action@v1.3.0
+        with:
+          command: release
+      - name: Prepare the next release PR
+        uses: robgonnella/releasaurus/action@v1.3.0
+        with:
+          command: release-pr

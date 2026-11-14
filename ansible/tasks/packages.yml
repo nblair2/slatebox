@@ -1,0 +1,86 @@
+---
+- name: Wait for cloud-init to finish the first boot
+  # A non-zero status (e.g. 2, "done" with recoverable errors) does not stop
+  # the build.
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  failed_when: false
+
+- name: Preseed postfix as "Local only"
+  # makes the package create /etc/aliases(.db), which topgen's main.cf uses
+  ansible.builtin.debconf:
+    name: postfix
+    question: postfix/main_mailer_type
+    vtype: select
+    value: Local only
+
+- name: Preseed postfix's mail name
+  ansible.builtin.debconf:
+    name: postfix
+    question: postfix/mailname
+    vtype: string
+    value: slatebox.topgen.info
+
+# lock_timeout: right after first boot, unattended-upgrades or cloud-init can
+# still hold the apt/dpkg lock.
+- name: Update the apt package lists
+  ansible.builtin.apt:
+    update_cache: true
+    lock_timeout: 600
+
+- name: Upgrade all packages (apt-get dist-upgrade)
+  ansible.builtin.apt:
+    upgrade: dist
+    lock_timeout: 600
+
+- name: Install the packages of the simulated services
+  ansible.builtin.apt:
+    name:
+      - frr
+      - keepalived
+      - bind9
+      - bind9-utils
+      - bind9-dnsutils
+      - dns-root-data
+      - nginx
+      - postfix
+      - dovecot-core
+      - dovecot-imapd
+      - isc-dhcp-server
+      - openssl
+      - iproute2
+      - traceroute
+      - tcpdump
+      - curl
+      - psmisc
+      - libev4t64
+    lock_timeout: 600
+
+- name: List the host's systemd units
+  ansible.builtin.service_facts:
+
+- name: Check that the unit list is complete
+  # the next task skips the units missing from it
+  ansible.builtin.assert:
+    that: "'nginx.service' in ansible_facts.services"
+    fail_msg: service_facts did not list nginx.service, so the host's daemons cannot be disabled
+
+- name: Disable the host's units of daemons that run inside CORE nodes
+  # networkd-dispatcher would run once for each of the map's ~800 interfaces.
+  # Units a package does not ship (any more) are skipped. tests/test_1_boot.py
+  # (HOST_UNITS) checks the same list.
+  ansible.builtin.systemd_service:
+    name: "{{ item }}.service"
+    enabled: false
+    state: stopped
+  loop:
+    - frr
+    - nginx
+    - named
+    - postfix
+    - dovecot
+    - isc-dhcp-server
+    - isc-dhcp-server6
+    - keepalived
+    - networkd-dispatcher
+  when: item ~ '.service' in ansible_facts.services

@@ -1,0 +1,21 @@
+# Weekly version updates, one grouped pull request per ecosystem.
+# Not covered (bump by hand): CORE, uv and goscrape versions and checksums,
+# and CORE's Python 3.12, in ansible/; PACKER_VERSION in the workflow; the
+# Packer plugin constraints in slatebox.pkr.hcl.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /tests
+    schedule:
+      interval: weekly
+    groups:
+      pip:
+        patterns: ["*"]

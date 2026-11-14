@@ -1,0 +1,51 @@
+---
+# Checks of the generated configuration that fail in minutes here rather than
+# at boot in the tests. None of them changes anything.
+- name: Check nginx's configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Check named's configuration
+  ansible.builtin.command: named-checkconf {{ topgen_varlib }}/etc/named.conf
+  changed_when: false
+
+- name: Check that the build added no custom DNS records
+  # topgen-boot dns writes the records it took from /etc/topgen/hosts.custom
+  # there; the installed hosts.custom has commented examples only
+  ansible.builtin.stat:
+    path: "{{ topgen_varlib }}/etc/custom-dns.hosts"
+  register: custom_dns
+  failed_when: not custom_dns.stat.exists or custom_dns.stat.size > 0
+
+- name: Check postfix's configuration
+  ansible.builtin.command: postfix -c {{ topgen_varlib }}/etc/postfix check
+  changed_when: false
+
+- name: Check dovecot's configuration
+  ansible.builtin.command: doveconf -c {{ topgen_varlib }}/etc/postfix/dovecot.conf -n
+  changed_when: false
+
+- name: Find the vhost certificates
+  ansible.builtin.find:
+    paths: "{{ topgen_varlib }}/certs"
+    patterns: "*.cer"
+  register: vhost_certs
+  failed_when: vhost_certs.matched == 0
+
+- name: Check the vhost certificates against the TopGen CA
+  ansible.builtin.command:
+    argv: "{{ ['openssl', 'verify', '-CAfile', topgen_varlib ~ '/etc/topgen_ca.cer'] + (vhost_certs.files | map(attribute='path') | sort) }}"
+  changed_when: false
+
+- name: Check that the published CRL parses
+  ansible.builtin.command: openssl crl -inform DER -noout -in {{ topgen_varlib }}/vhosts/topgen.info/topgen_ca.crl
+  changed_when: false
+
+- name: Read the web hosts served by topgen.info
+  ansible.builtin.command: cat {{ topgen_varlib }}/etc/hosts.nginx
+  register: hosts_nginx
+  changed_when: false
+
+- name: Show the web hosts served by topgen.info
+  ansible.builtin.debug:
+    var: hosts_nginx.stdout_lines

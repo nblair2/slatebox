@@ -1,0 +1,49 @@
+---
+# Turns the Ubuntu 26.04 cloud image into slatebox. Packer runs this playbook
+# as root over its SSH connection to the build VM (slatebox.pkr.hcl) and passes
+# ext_iface, scrape_sites, scrape_depth, scrape_timeout and scrape_jobs as
+# extra vars.
+# The task files run in this order; cheap failures come before the long scrape.
+- name: Provision slatebox
+  hosts: all
+  gather_facts: false
+  environment:
+    PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+  vars:
+    core_version: 9.2.1
+    core_deb_sha256: 1ae0f42acaa6f4c8e47b3d3c90187cb857d3906e581d421886e28ab497d24a45
+    uv_version: 0.11.32
+    uv_sha256: aab924fd522efd06f1c5f3b93a243864fc453132c94b2dc49f1371b528a4b967
+    goscrape_version: v0.3.0
+    goscrape_sha256: 599c6fc834b8fa7f8ec5b089f4943bd5e6b5d8def188a13349d011f867dda088
+    # static files, each at its installed path
+    files_dir: "{{ playbook_dir }}/../files"
+    topgen_varlib: /var/lib/topgen
+
+  tasks:
+    - name: Check the variables passed by Packer
+      ansible.builtin.assert:
+        that:
+          - ext_iface is string and ext_iface | length > 0
+          - scrape_sites is sequence and scrape_sites is not string and scrape_sites | length > 0
+          - scrape_depth | int > 0
+          - scrape_timeout is string and scrape_timeout | length > 0
+          - scrape_jobs | int > 0
+
+    - name: Packages
+      ansible.builtin.import_tasks: tasks/packages.yml
+    - name: CORE
+      ansible.builtin.import_tasks: tasks/core.yml
+    - name: Goscrape
+      ansible.builtin.import_tasks: tasks/goscrape.yml
+    - name: Greybox
+      ansible.builtin.import_tasks: tasks/greybox.yml
+    - name: Topgen
+      ansible.builtin.import_tasks: tasks/topgen.yml
+    - name: Content
+      ansible.builtin.import_tasks: tasks/content.yml
+    - name: Build-time checks
+      ansible.builtin.import_tasks: tasks/verify.yml
+    - name: Finalize
+      ansible.builtin.import_tasks: tasks/finalize.yml

@@ -1,0 +1,6 @@
+# Ruff settings for the prek hooks (prek.toml).
+line-length = 120
+# CORE's venv and the Ubuntu 24.04 test runner both use Python 3.12.
+target-version = "py312"
+# tests/ import conftest as a first-party module
+src = [".", "tests"]

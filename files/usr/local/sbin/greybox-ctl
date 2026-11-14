@@ -1,0 +1,105 @@
+#!/opt/core/venv/bin/python
+"""Run the greybox map as a CORE session.
+
+@EXT_IFACE@ in the map (the RJ45 node) becomes $GREYBOX_EXT_IFACE; a dummy
+interface stands in for it when that NIC is missing.
+
+usage: greybox-ctl start [map.xml] | stop | status | exec <node-name> <cmd...>
+"""
+
+import os
+import shlex
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import grpc
+from core.api.grpc.client import CoreGrpcClient
+from core.api.grpc.wrappers import SessionState
+
+DEFAULT_MAP = "/etc/greybox/map.xml"
+SID_FILE = Path("/run/greybox.sid")
+RUN_MAP = Path("/run/greybox.xml")  # effective map, kept for debugging
+EXT = os.environ.get("GREYBOX_EXT_IFACE", "ens4")
+
+
+def connect(timeout=600):
+    """Client for core-daemon, waiting for it to accept requests."""
+    deadline = time.monotonic() + timeout
+    while True:
+        # a fresh channel each try: one created before the daemon listens can
+        # stay stuck in reconnect backoff
+        client = CoreGrpcClient()
+        client.connect()
+        try:
+            client.get_sessions()
+            return client
+        except grpc.RpcError:
+            client.close()
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(2)
+
+
+def session(client):
+    if not SID_FILE.exists():
+        sys.exit("greybox: no session (not started)")
+    return client.get_session(int(SID_FILE.read_text()))
+
+
+def start(path=DEFAULT_MAP):
+    xml = Path(path).read_text()
+    if "@EXT_IFACE@" in xml:
+        xml = xml.replace("@EXT_IFACE@", EXT)
+        # CORE's RJ45 node fails the whole session if its interface is absent
+        if not Path("/sys/class/net", EXT).exists():
+            print(f"greybox: {EXT} not present, using a dummy interface", file=sys.stderr)
+            subprocess.run(["ip", "link", "add", EXT, "type", "dummy"], check=True)
+    RUN_MAP.write_text(xml)
+    client = connect()
+    _, sid = client.open_xml(RUN_MAP, start=True)
+    SID_FILE.write_text(f"{sid}\n")
+    # CORE reaches RUNTIME even if some node services failed; those are only logged.
+    print(f"greybox: session {sid} {client.get_session(sid).state.name}")
+
+
+def stop():
+    if SID_FILE.exists():
+        client = connect()
+        sid = int(SID_FILE.read_text())
+        client.stop_session(sid)
+        client.delete_session(sid)
+        SID_FILE.unlink()
+
+
+def status():
+    s = session(connect())
+    print(f"greybox: session {s.id} {s.state.name}, {len(s.nodes)} nodes, {s.file}")
+    if s.state != SessionState.RUNTIME:
+        sys.exit(1)
+
+
+def exec_(name, *cmd):
+    client = connect()
+    s = session(client)
+    node = next((n for n in s.nodes.values() if n.name == name), None)
+    if node is None:
+        sys.exit(f"greybox: no node named {name}")
+    # CORE returns only stdout when a command succeeds, only stderr when it
+    # fails. So stderr goes to stdout, and the exit status follows as the last line.
+    script = f"{shlex.join(cmd)} 2>&1; printf '\\n%d' $?"
+    code, output = client.node_command(s.id, node.id, script, shell=True)
+    if code == 0:  # else the node itself could not run it
+        output, _, status = output.rpartition("\n")
+        code = int(status)
+    print(output.rstrip("\n"))
+    sys.exit(code)
+
+
+COMMANDS = {"start": start, "stop": stop, "status": status, "exec": exec_}
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
+        sys.exit(__doc__.strip())
+    COMMANDS[sys.argv[1]](*sys.argv[2:])
