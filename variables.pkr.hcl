@@ -82,3 +82,9 @@ variable "scrape_jobs" {
     error_message = "The scrape_jobs value must be at least 1."
   }
 }
+
+variable "overlay_dir" {
+  type        = string
+  default     = ""
+  description = "directory copied onto / after topgen's files are installed, before the CA, scrape and mail setup; empty for none"
+}

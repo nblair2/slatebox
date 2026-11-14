@@ -36,6 +36,7 @@ Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 | `scrape_depth` | `1` | Crawl depth |
 | `scrape_timeout` | `60m` | Limit per site; partial mirrors are kept |
 | `scrape_jobs` | `8` | Parallel goscrape processes; lower it to be gentler on mirrored sites |
+| `overlay_dir` | `""` | Directory copied onto `/` before the CA, scrape and mail setup |
 
 ## Services
 
@@ -80,6 +81,9 @@ Domains and accounts come from [vmail.cfg](files/etc/topgen/vmail.cfg).
 ### Certificates
 
 Clients must trust the generated CA at `/var/lib/topgen/etc/topgen_ca.cer`.
+To use an existing CA, put its PEM key and certificate in `overlay_dir` as
+`var/lib/topgen/etc/topgen_ca.key` and `var/lib/topgen/etc/topgen_ca.cer`. The overlay can also
+replace `etc/topgen/vmail.cfg` or `etc/topgen/hosts.custom`. File modes are kept.
 `topgen-ca.sh` issues and revokes certificates and regenerates the CRL, served at
 `http://topgen.info/topgen_ca.crl`.
 

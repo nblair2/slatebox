@@ -73,7 +73,8 @@ EOF
 }
 
 init() {
-  [ -s "$CA_KEY" ] && [ -s "$CA_CER" ] && return
+  # a CA supplied beforehand (e.g. by overlay_dir) is kept
+  [ -s "$CA_KEY" ] && [ -s "$CA_CER" ] && { chmod 600 "$CA_KEY"; return; }
   mkdir -p "$ETC"
   openssl req -x509 -newkey rsa:4096 -nodes -keyout "$CA_KEY" -out "$CA_CER" \
           -days "$CA_DAYS" -subj "$CA_SUBJECT" \
