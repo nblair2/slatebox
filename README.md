@@ -1,11 +1,14 @@
 # slatebox
 
+[![Release](https://img.shields.io/github/v/release/nblair2/slatebox?style=flat-square)](https://github.com/nblair2/slatebox/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/nblair2/slatebox/build.yml?branch=main&style=flat-square&label=build)](https://github.com/nblair2/slatebox/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
+[![Ubuntu](https://img.shields.io/badge/ubuntu-26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white)](https://ubuntu.com/server)
+
 > "Have you ever had a dream, Neo, that you were so sure was real? … How would you know the difference between the dream world and the real world?”
-> - Morpheus, The Matrix
+> - Morpheus, *The Matrix*
 
-**`slatebox` is an internet simulator in a VM**
-
-*`slatebox` is a "clean slate" implementation of CMU-SEI's excellent [`greybox`](https://github.com/cmu-sei/greybox) tool*
+**`slatebox` is an internet simulator in a VM.** It is a "clean slate" implementation of CMU-SEI's excellent [`greybox`](https://github.com/cmu-sei/greybox) tool
 
 ![slatebox](.media/slatebox.jpg)
 
