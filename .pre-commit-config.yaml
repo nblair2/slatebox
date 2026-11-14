@@ -11,12 +11,7 @@ repos:
   - repo: builtin
     hooks:
       - id: trailing-whitespace
-        # TEMPORARY: upstream-derived script with 2 trailing-whitespace lines
-        # (one in its usage text); drop once the file is cleaned up.
-        exclude: ^files/usr/local/sbin/topgen-mkdns\.sh$
       - id: end-of-file-fixer
-        # TEMPORARY: same file ends with a blank line.
-        exclude: ^files/usr/local/sbin/topgen-mkdns\.sh$
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: check-yaml

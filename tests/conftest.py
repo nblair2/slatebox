@@ -203,10 +203,16 @@ def write_diag(reason):
         return
     path = vm.out / "diag.txt"
     _state["diag"] = path
-    script = """set -x
+    # Known-benign AppArmor denials, repeated for every router, that would push a
+    # real one out of the kernel log tail: bgpd looks for a config file in
+    # /usr/local/etc/frr (CORE passes it each node's own) and names its threads
+    # in /proc; `who` cannot read passwd and nsswitch.conf. Both work regardless.
+    benign = r'profile="bgpd" name="(/usr/local/etc/frr/frr\.conf|/proc/[0-9]+/task/[0-9]+/comm)"|profile="who"'
+    script = f"""BENIGN={shlex.quote(benign)}
+set -x
 systemctl --no-pager status greybox core-daemon
 journalctl -b --no-pager -u core-daemon -u greybox | tail -300
-journalctl -k --no-pager | grep -i denied | tail -50
+journalctl -k --no-pager | grep -i denied | grep -Ev "$BENIGN" | tail -50
 greybox-ctl status; cat /etc/default/greybox; ip -br link | head -20; ip -s link show ens4
 cat /var/lib/topgen/etc/hosts.nginx
 greybox-ctl exec topgen.info ps -ef

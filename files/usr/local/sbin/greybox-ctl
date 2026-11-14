@@ -86,8 +86,14 @@ def exec_(name, *cmd):
     node = next((n for n in s.nodes.values() if n.name == name), None)
     if node is None:
         sys.exit(f"greybox: no node named {name}")
-    code, output = client.node_command(s.id, node.id, shlex.join(cmd), shell=True)
-    print(output)
+    # CORE returns only stdout when a command succeeds, only stderr when it
+    # fails. So stderr goes to stdout, and the exit status follows as the last line.
+    script = f"{shlex.join(cmd)} 2>&1; printf '\\n%d' $?"
+    code, output = client.node_command(s.id, node.id, script, shell=True)
+    if code == 0:  # else the node itself could not run it
+        output, _, status = output.rpartition("\n")
+        code = int(status)
+    print(output.rstrip("\n"))
     sys.exit(code)
 
 

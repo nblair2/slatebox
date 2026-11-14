@@ -59,10 +59,26 @@ variable "scrape_depth" {
   type        = number
   default     = 1
   description = "link depth per site"
+
+  validation {
+    condition     = var.scrape_depth >= 1
+    error_message = "The scrape_depth must be at least 1."
+  }
 }
 
 variable "scrape_timeout" {
   type        = string
   default     = "60m"
-  description = "time limit per site (coreutils timeout); a partial mirror is kept"
+  description = "time limit per site (coreutils timeout); a partial mirror is kept; sites are scraped side by side"
+}
+
+variable "scrape_jobs" {
+  type        = number
+  default     = 8
+  description = "goscrape processes at once (only scrape_depth >= 2 or several sites use more than one)"
+
+  validation {
+    condition     = var.scrape_jobs >= 1
+    error_message = "The scrape_jobs value must be at least 1."
+  }
 }

@@ -12,6 +12,8 @@
       # the real one.
       ansible.builtin.command:
         argv: "{{ ['topgen-scrape.sh', scrape_depth | string, scrape_timeout] + scrape_sites }}"
+      environment:
+        TOPGEN_SCRAPE_JOBS: "{{ scrape_jobs }}"
       async: 86400
       poll: 60
       register: scrape
@@ -41,7 +43,9 @@
   changed_when: true
 
 - name: Generate topgen's DNS configuration
-  ansible.builtin.command: topgen-mkdns.sh -f -x /etc/greybox/backbone.hosts
+  # the same command the topgen.info node runs at every start; it reads
+  # hosts.nginx, hosts.vmail and backbone.hosts, so it comes after them
+  ansible.builtin.command: topgen-boot dns
   changed_when: true
 
 - name: Publish the TopGen CA's CRL

@@ -1,5 +1,7 @@
 """DNS works like the real thing: root -> TLD -> answer, through the in-sim resolver 8.8.8.8."""
 
+import shlex
+
 import pytest
 
 from conftest import REPO, mail_servers
@@ -62,20 +64,22 @@ def test_mail_domain_mx(vm, host, ip, user, password):
     assert dig(vm, f"@{RESOLVER} {host} A") == [ip]
 
 
-def test_user_record_from_hosts_custom(vm):
-    """A line appended to /etc/topgen/hosts.custom resolves (A and PTR, made-up TLD
-    included) after `topgen-boot reload-dns`. The file is restored afterwards."""
-    if not vm.sh("grep -q reload-dns /usr/local/sbin/topgen-boot").ok:
-        pytest.skip("this image has no topgen-boot reload-dns")
+def test_user_records_from_hosts_custom(vm, vhost):
+    """Lines appended to /etc/topgen/hosts.custom resolve (A and PTR, made-up TLD
+    included) after `topgen-boot reload-dns`; a line redefining the vhost and a
+    malformed one are skipped with a warning. The file is restored afterwards."""
     ip, name = "12.0.0.77", "slatebox-test.range.lab"
+    lines = [f"{ip} {name}", f"12.0.0.78 {vhost[0]}", "not-an-address broken"]
     f, bak = "/etc/topgen/hosts.custom", "/run/hosts.custom.test-bak"
     reload = "greybox-ctl exec topgen.info topgen-boot reload-dns"
-    assert vm.sh(f"touch {f} && cp -a {f} {bak} && echo '{ip} {name}' >> {f}").ok
+    assert vm.sh(f"cp -a {f} {bak} && printf '%s\\n' {shlex.join(lines)} >> {f}").ok
     try:
         r = vm.sh(reload)
         assert r.ok, r.out
+        assert f"{vhost[0]} is already defined" in r.out and "not an IPv4 address" in r.out, r.out
         assert dig(vm, f"@{RESOLVER} {name} A") == [ip]
         assert f"{name}." in dig(vm, f"@{RESOLVER} -x {ip}")
+        assert dig(vm, f"@{RESOLVER} {vhost[0]} A") == [vhost[1]]
     finally:
         vm.sh(f"mv {bak} {f} && {reload}")
 

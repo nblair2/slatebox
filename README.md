@@ -22,8 +22,8 @@ from them were taken from these upstream commits and adapted for Ubuntu, CORE 9 
   `files/etc/greybox/map.xml` was converted once to CORE XML from `share/maps/backbone_ext.imn`
   and is now maintained by hand.
 
-`greybox-ctl`, `frr-shim`, the CORE `UserDefined` service, `topgen-ca.sh` and the rest of
-`topgen-scrape.sh` are slatebox's own. Every static file that goes into the image lives under
+`greybox-ctl`, `frr-shim`, the CORE `UserDefined` service, `topgen-ca.sh`, `hosts.custom` and the
+rest of `topgen-scrape.sh` are slatebox's own. Every static file that goes into the image lives under
 `files/`, at its installed path; the two files that depend on `ext_iface` are templates in
 `ansible/templates/`.
 
@@ -56,8 +56,8 @@ playbook runs these task files in order, as root; their task names read as the b
 | `verify.yml` | checks the generated nginx, named, postfix, dovecot and certificate files |
 | `finalize.yml` | networking, logins, cleanup, `resolv.conf` |
 
-The Packer variables `ext_iface`, `scrape_sites`, `scrape_depth` and `scrape_timeout` reach the
-playbook as extra vars. `ansible/ansible.cfg` prints task results as YAML, so a failure can be
+The Packer variables `ext_iface`, `scrape_sites`, `scrape_depth`, `scrape_timeout` and `scrape_jobs`
+reach the playbook as extra vars. `ansible/ansible.cfg` prints task results as YAML, so a failure can be
 read from the CI log.
 
 ## How CI builds it
@@ -79,6 +79,12 @@ On every push that changes more than `*.md` and `LICENSE.*` files (and on manual
 Most of the build is the site scrape. With the default `scrape_depth` of 1, www.cmu.edu takes a few
 minutes and yields about 120 MB. Deeper crawls of a large site take much longer; each site is bounded
 by `scrape_timeout` (default `60m`), and a site that hits the limit yields a partial mirror.
+
+goscrape fetches one URL at a time. With `scrape_depth` of 2 or more, or several sites, the build
+runs up to `scrape_jobs` (default 8) goscrape processes side by side: it first mirrors each start
+page and the pages it links to, then crawls each of those pages to `scrape_depth` − 1. Against
+www.cmu.edu this saved about 3× the pages in the same time, at the cost of about 3× the requests
+per saved page. Lower `scrape_jobs` to be gentler on the sites you mirror.
 
 ## Building locally
 
@@ -127,7 +133,8 @@ prek run --all-files        # what CI runs
 | `ext_iface` | `ens4` | NIC given to the map's RJ45 node |
 | `scrape_sites` | `["https://www.cmu.edu"]` | Sites mirrored into the image (`http://` or `https://`) |
 | `scrape_depth` | `1` | Link depth per site |
-| `scrape_timeout` | `60m` | Time limit per site; a partial mirror is kept |
+| `scrape_timeout` | `60m` | Time limit per site (sites are scraped side by side); a partial mirror is kept |
+| `scrape_jobs` | `8` | goscrape processes at once (see [How CI builds it](#how-ci-builds-it)) |
 
 CORE, uv, Python and goscrape versions (and the download checksums) are pinned in
 `ansible/playbook.yml`.
@@ -162,7 +169,7 @@ a few minutes, and BGP needs a few more to converge.
 ```sh
 greybox-ctl status
 greybox-ctl exec CharlieUser1 traceroute -n www.cmu.edu
-greybox-ctl exec CharlieUser1 curl --cacert /var/lib/topgen/etc/topgen_ca.cer https://www.cmu.edu/
+greybox-ctl exec CharlieUser1 curl -sS --cacert /var/lib/topgen/etc/topgen_ca.cer https://www.cmu.edu/
 sudo systemctl restart greybox
 ```
 
@@ -170,6 +177,23 @@ The host's `/etc/resolv.conf` is `nameserver 8.8.8.8`, the simulated resolver, a
 recommends; CORE nodes share it. The host's own `frr`, `nginx`, `named`, `postfix`, `dovecot`,
 `keepalived` and `isc-dhcp-server` units are disabled, because these daemons run inside nodes.
 `https://topgen.info/` lists the mirrored sites.
+
+## Custom DNS records
+
+To give names to machines you add to the simulation (for example a VM on the external
+`12.0.0.0/24` network), append `IP name...` lines to `/etc/topgen/hosts.custom`, then restart the
+simulation or reload DNS:
+
+```sh
+echo "12.0.0.50 intranet.example.com" | sudo tee -a /etc/topgen/hosts.custom
+sudo greybox-ctl exec topgen.info topgen-boot reload-dns
+```
+
+Any top-level domain works, including made-up ones such as `.lab`, and every address also gets a
+PTR record. Only A and PTR records are supported. Custom records are added to the built-in ones and
+never replace them: a name the mirrored sites, mail servers or backbone already use is skipped with
+a warning, and so is a malformed line. To hand a whole second-level domain or /24 reverse zone to
+your own nameserver, edit `/etc/topgen/delegations.dns`; the same reload applies it.
 
 ## CA and CRL
 

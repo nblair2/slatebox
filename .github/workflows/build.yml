@@ -74,8 +74,12 @@ jobs:
             echo "PACKER_CACHE_DIR=$BUILD/cache"
             echo "TMPDIR=$BUILD/tmp"
           } >>"$GITHUB_ENV"
-      - run: packer init . && packer build -color=false -timestamp-ui -var "output_dir=$BUILD/image" .
-      - run: df -h "$BUILD" && ls -l "$BUILD/image"
+      # cpus: as many as the runner has (the variable's default, 4, is more
+      # than a 2-CPU runner's KVM recommends)
+      - run: packer init . && packer build -color=false -timestamp-ui -var "output_dir=$BUILD/image" -var "cpus=$(nproc)" .
+      - name: Show free disk space and the image
+        if: ${{ !cancelled() }}
+        run: df -h && ls -l "$BUILD/image"
       # Boots the image and runs tests/test_*.py. --deadline (minutes) stops the
       # run with diagnostics before the step's timeout would kill it.
       - name: Test the image

@@ -78,6 +78,7 @@ build {
         scrape_sites   = var.scrape_sites
         scrape_depth   = var.scrape_depth
         scrape_timeout = var.scrape_timeout
+        scrape_jobs    = var.scrape_jobs
         # sudo needs it once the playbook removes passwordless sudo
         ansible_become_password = var.admin_password
       }),
