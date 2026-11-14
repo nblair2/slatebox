@@ -90,19 +90,20 @@ The [Makefile](Makefile) wraps the build, test and lint commands:
 
 | Command | Purpose |
 |---|---|
-| `make install-dev` | Install dev tools, test environment, Git hooks and Packer plugins |
+| `make install-dev` | Install build/test packages (apt), dev tools, test environment, Git hooks and Packer plugins |
 | `make init` | Install Packer plugins |
 | `make build` | Initialize plugins and build the image |
 | `make test` | Boot and test `IMAGE` (default: `build/image/slatebox.qcow2`) |
 | `make lint` | Run all [prek checks](prek.toml), including Packer validation |
 
-Development requires uv, the build tools above, Python 3.12+, sudo, `sshpass`, `busybox`, `dig`,
-`certutil` and `traceroute`. Run `make install-dev` once, then `make lint` or `make test`.
+Development requires uv, Packer, Python 3.12+, sudo, the build tools above, `sshpass`, `busybox`,
+`dig`, `certutil` and `traceroute`; on Ubuntu, `make install-dev` installs them with apt. Run
+`make install-dev` once, then `make lint` or `make test`.
 Use `TEST_ARGS='--keep'` to leave the VM running
 or `TEST_ARGS='--attach -k dns'` to reuse it. Results and diagnostics go to `test-output/`.
 
-[CI](.github/workflows/build.yml) validates, builds and tests the image; successful qcow2
-artifacts are kept for three days. Dependabot updates actions and test dependencies;
+[CI](.github/workflows/build.yml) validates, builds and tests the image for pull requests to and
+pushes on the default branch, or any branch on demand; successful qcow2 artifacts are kept for three days. Dependabot updates actions and test dependencies;
 hook revisions use `prek update`. Ruff targets CORE's and CI's Python 3.12.
 
 [Releasaurus](.github/workflows/release.yml) opens a release PR on the default branch; merge it
