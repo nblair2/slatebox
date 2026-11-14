@@ -1,0 +1,49 @@
+#!/bin/sh
+
+# TopGen Container start/stop/status (glsomlo@cert.org, Oct. 2015)
+# Run on node topgen.info by its UserDefined service in /etc/greybox/map.xml.
+
+status() {
+  pidof named && pidof nginx && pidof master && pidof dovecot
+}
+
+start() {
+  awk '{print $1}' /var/lib/topgen/etc/hosts.* | sort -u | while read -r i; do
+    /usr/sbin/ip addr add "$i" scope global dev lo
+  done
+  [ -s /var/lib/topgen/etc/named.conf ] && \
+    /usr/sbin/named -u bind -c /var/lib/topgen/etc/named.conf
+  [ -s /var/lib/topgen/etc/nginx.conf ] && \
+    /usr/sbin/nginx
+  [ -s /var/lib/topgen/etc/postfix/main.cf ] && \
+    /usr/sbin/postfix -c /var/lib/topgen/etc/postfix start
+  [ -s /var/lib/topgen/etc/postfix/dovecot.conf ] && \
+    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf </dev/null >/dev/null 2>&1
+}
+
+stop() {
+  pidof dovecot && \
+    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf stop
+  pidof master && \
+    /usr/sbin/postfix -c /var/lib/topgen/etc/postfix stop
+  pidof nginx && \
+    /usr/sbin/nginx -s quit
+  pidof named && \
+    /usr/sbin/rndc stop
+  /usr/sbin/ip addr flush scope global dev lo
+}
+
+restart() {
+  stop
+  start
+}
+
+case "$1" in
+  start|stop|restart|status)
+    $1
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 2
+    ;;
+esac

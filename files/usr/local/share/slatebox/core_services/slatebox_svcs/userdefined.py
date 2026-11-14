@@ -1,8 +1,8 @@
 """CORE 9 stand-in for legacy CORE's per-node UserDefined service.
 
 Legacy maps configure it per node with Python tuples (dirs, files, cmdup,
-cmddown). imn2xml.py passes those through verbatim as service configs and the
-files' content as templates, so map content stays unchanged.
+cmddown). The map carries those verbatim as service configs and the files'
+content as templates, so map content stays unchanged.
 """
 
 import ast

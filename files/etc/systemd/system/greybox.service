@@ -1,14 +1,15 @@
 [Unit]
 Description=Greybox CORE session (/etc/greybox/map.xml)
 Requires=core-daemon.service
-After=core-daemon.service
+After=core-daemon.service network.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/sbin/greybox-ctl start
-ExecStop=/usr/sbin/greybox-ctl stop
-# 69 routers take minutes to boot (much longer under TCG)
+EnvironmentFile=-/etc/default/greybox
+ExecStart=/usr/local/sbin/greybox-ctl start
+ExecStop=/usr/local/sbin/greybox-ctl stop
+# 69 routers take minutes to boot
 TimeoutStartSec=infinity
 
 [Install]
