@@ -63,6 +63,7 @@
   # the next task skips the units missing from it
   ansible.builtin.assert:
     that: "'nginx.service' in ansible_facts.services"
+    fail_msg: service_facts did not list nginx.service, so the host's daemons cannot be disabled
 
 - name: Disable the host's units of daemons that run inside CORE nodes
   # networkd-dispatcher would run once for each of the map's ~800 interfaces.
