@@ -4,6 +4,10 @@ packer {
       source  = "github.com/hashicorp/qemu"
       version = "~> 1.1"
     }
+    ansible = {
+      source  = "github.com/hashicorp/ansible"
+      version = "~> 1.1"
+    }
   }
 }
 
@@ -46,27 +50,37 @@ source "qemu" "slatebox" {
   ssh_username = "slatebox"
   ssh_password = var.admin_password
   ssh_timeout  = "15m"
-  # provision.sh removes passwordless sudo
+  # the playbook removes passwordless sudo
   shutdown_command = "echo '${var.admin_password}' | sudo -S shutdown -P now"
 }
 
 build {
   sources = ["source.qemu.slatebox"]
 
-  # uploads to /tmp/files
-  provisioner "file" {
-    source      = "${path.root}/files"
-    destination = "/tmp/"
-  }
-
-  provisioner "shell" {
-    script          = "${path.root}/scripts/provision.sh"
-    execute_command = "sudo {{ .Vars }} bash {{ .Path }}"
-    environment_vars = [
-      "EXT_IFACE=${var.ext_iface}",
-      "SCRAPE_SITES=${join(" ", var.scrape_sites)}",
-      "SCRAPE_DEPTH=${var.scrape_depth}",
-      "SCRAPE_TIMEOUT=${var.scrape_timeout}",
+  # Runs ansible-playbook on the build host. use_proxy: Ansible connects to a
+  # local SSH server of Packer's, which runs every command and file transfer
+  # over Packer's own SSH connection to the VM. That needs no sshpass, and it
+  # keeps working after the playbook deletes the VM's SSH host keys (a new
+  # connection to the VM's sshd would not).
+  provisioner "ansible" {
+    playbook_file = "${path.root}/ansible/playbook.yml"
+    use_proxy     = true
+    user          = "slatebox"
+    # file transfers use the VM's sftp-server (the plugin's default path is not Ubuntu's)
+    use_sftp     = true
+    sftp_command = "/usr/lib/openssh/sftp-server -e"
+    ansible_env_vars = [
+      "ANSIBLE_CONFIG=${abspath(path.root)}/ansible/ansible.cfg",
+    ]
+    extra_arguments = [
+      "--extra-vars", jsonencode({
+        ext_iface      = var.ext_iface
+        scrape_sites   = var.scrape_sites
+        scrape_depth   = var.scrape_depth
+        scrape_timeout = var.scrape_timeout
+        # sudo needs it once the playbook removes passwordless sudo
+        ansible_become_password = var.admin_password
+      }),
     ]
   }
 }

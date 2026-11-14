@@ -1,0 +1,24 @@
+---
+- name: Download goscrape {{ goscrape_version }}
+  ansible.builtin.get_url:
+    url: https://github.com/cornelk/goscrape/releases/download/{{ goscrape_version }}/goscrape_{{ goscrape_version }}_linux_64bit.tar.gz
+    dest: "{{ build_tmp.path }}/goscrape.tar.gz"
+    checksum: sha256:{{ goscrape_sha256 }}
+    timeout: 60
+    mode: "0644"
+
+- name: Unpack the goscrape binary into the scratch directory
+  ansible.builtin.unarchive:
+    src: "{{ build_tmp.path }}/goscrape.tar.gz"
+    dest: "{{ build_tmp.path }}"
+    remote_src: true
+    include: [goscrape]
+
+- name: Install goscrape into /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ build_tmp.path }}/goscrape"
+    dest: /usr/local/bin/goscrape
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"

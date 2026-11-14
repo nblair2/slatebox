@@ -9,35 +9,54 @@
 #                  sudo greybox-ctl exec topgen.info topgen-boot reload-dns
 #
 # DNS data comes from the scraped and mail hosts, the greybox backbone, the
-# delegations in /etc/topgen/delegations.dns, and user records in
-# /etc/topgen/dns.d/*.hosts ("IP name..." per line, like /etc/hosts).
+# delegations in /etc/topgen/delegations.dns, and user records appended to
+# /etc/topgen/hosts.custom ("IP name..." per line, like /etc/hosts).
 # TOPGEN_VARLIB and TOPGEN_ETC exist for tests.
 
 PATH=$PATH:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 V=${TOPGEN_VARLIB:-/var/lib/topgen}
 E=${TOPGEN_ETC:-/etc/topgen}
-# user records after cleanup; not named hosts.*: their addresses belong to
-# other machines, so start must not add them to lo
+BACKBONE=/etc/greybox/backbone.hosts
+# the user records that passed custom_records; not named hosts.*: their
+# addresses belong to other machines, so start must not add them to lo
 CUSTOM=$V/etc/custom-dns.hosts
 
-# Print "IP name" for every valid name in the user files; report bad lines.
+# Print "IP name" for each new, valid name in hosts.custom. Names that the
+# built-in hosts files (read first, from stdin) or an earlier line define are
+# skipped, so user records only ever add to DNS. Every skip is reported.
 custom_records() {
-  for f in "$E"/dns.d/*.hosts; do
-    [ -f "$f" ] || continue
-    awk -v file="$f" '
+  [ -f "$E/hosts.custom" ] || return 0
+  cat "$V/etc/hosts.nginx" "$V/etc/hosts.vmail" "$BACKBONE" 2>/dev/null |
+    awk '
+      FILENAME == "-" { known[$2] = 1; next }
       { sub(/#.*/, ""); $0 = tolower($0) }
       NF == 0 { next }
       {
         ok = split($1, o, ".") == 4 && NF >= 2
         for (i = 1; ok && i <= 4; i++) ok = o[i] ~ /^[0-9]+$/ && o[i] <= 255
-        for (i = 2; ok && i <= NF; i++) {
-          sub(/\.$/, "", $i)
-          ok = $i ~ /^([a-z0-9_]([a-z0-9_-]*[a-z0-9])?\.)+[a-z]([a-z0-9-]*[a-z0-9])?$/
+        if (!ok) { skip("not an IPv4 address and name(s)"); next }
+        for (i = 2; i <= NF; i++) {
+          name = $i
+          sub(/\.$/, "", name)
+          if (name !~ /^([a-z0-9_]([a-z0-9_-]*[a-z0-9])?\.)+[a-z]([a-z0-9-]*[a-z0-9])?$/ ||
+              long_label(name) || length(name) > 253)
+            skip("bad name " name)
+          else if (name in known)
+            skip(name " is already defined")
+          else {
+            known[name] = 1
+            print $1, name
+          }
         }
-        if (!ok) { printf "topgen-boot: %s:%d: skipped: %s\n", file, NR, $0 > "/dev/stderr"; next }
-        for (i = 2; i <= NF; i++) print $1, $i
-      }' "$f"
-  done
+      }
+      function long_label(name,   label, n, i) {
+        n = split(name, label, ".")
+        for (i = 1; i <= n; i++) if (length(label[i]) > 63) return 1
+        return 0
+      }
+      function skip(why) {
+        printf "topgen-boot: %s:%d: skipped (%s): %s\n", FILENAME, FNR, why, $0 > "/dev/stderr"
+      }' - "$E/hosts.custom"
 }
 
 # topgen-mkdns.sh rewrites named.conf and the zones from scratch, then we check
@@ -45,17 +64,17 @@ custom_records() {
 mkdns() {
   topgen-mkdns.sh -f -q -w "$V/etc/hosts.nginx" -m "$V/etc/hosts.vmail" \
     -d "$E/delegations.dns" -n "$V/etc/hosts.named" -c "$V/etc/named.conf" \
-    -z "$V/named" -x /etc/greybox/backbone.hosts ${1:+-x "$1"} &&
-    out=$(named-checkconf -z "$V/etc/named.conf" 2>&1) || {
-      echo "$out" | grep -v ': loaded serial' >&2
-      return 1
-    }
+    -z "$V/named" -x "$BACKBONE" ${1:+-x "$1"} || return
+  out=$(named-checkconf -z "$V/etc/named.conf" 2>&1) && return
+  echo "$out" | grep -v -e ': loaded serial' -e 'out-of-zone data' >&2
+  return 1
 }
 
+# Should hosts.custom still break the configuration, DNS runs without it.
 dns() {
   custom_records > "$CUSTOM"
   mkdns "$CUSTOM" && return
-  echo "topgen-boot: DNS with $E/dns.d failed, using the built-in records only" >&2
+  echo "topgen-boot: DNS failed with $E/hosts.custom, using the built-in records only" >&2
   mkdns
 }
 

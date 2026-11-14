@@ -1,0 +1,99 @@
+---
+- name: Create greybox's directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/greybox
+    - /usr/local/share/slatebox/core_services/slatebox_svcs
+
+- name: Install the greybox map and its configuration files
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/greybox/{{ item }}"
+    dest: /etc/greybox/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - map.xml
+    - backbone.hosts
+    - keepalived.conf
+
+- name: Install the CORE UserDefined service used by the map
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/usr/local/share/slatebox/core_services/slatebox_svcs/userdefined.py"
+    dest: /usr/local/share/slatebox/core_services/slatebox_svcs/userdefined.py
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install greybox's commands into /usr/local/sbin
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/usr/local/sbin/{{ item }}"
+    dest: /usr/local/sbin/{{ item }}
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - greybox-ctl
+    - frr-shim
+    - topgen-boot
+
+- name: Put frr-shim in front of FRR's daemons
+  # CORE 9.2's frrboot.sh was written for FRR <= 8 and finds these names in
+  # /usr/local/sbin before /usr/lib/frr; frr-shim explains what it adapts.
+  ansible.builtin.file:
+    src: /usr/local/sbin/frr-shim
+    dest: /usr/local/sbin/{{ item }}
+    state: link
+    force: true
+  loop:
+    - zebra
+    - staticd
+    - bgpd
+    - ospfd
+    - ospf6d
+    - ripd
+    - ripngd
+    - babeld
+    - pimd
+
+- name: Remove the host's FRR configuration
+  # without a host frr.conf, frrboot.sh uses each node's own
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/frr/frr.conf
+    - /etc/frr/vtysh.conf
+
+- name: Install greybox.service
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/systemd/system/greybox.service"
+    dest: /etc/systemd/system/greybox.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Give the map's RJ45 node the external NIC (/etc/default/greybox)
+  ansible.builtin.template:
+    src: greybox.default.j2
+    dest: /etc/default/greybox
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reload systemd's unit files
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Start core-daemon and greybox at boot
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+  loop:
+    - core-daemon.service
+    - greybox.service

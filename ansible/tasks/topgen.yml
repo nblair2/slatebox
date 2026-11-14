@@ -1,0 +1,106 @@
+---
+- name: Create /etc/topgen
+  ansible.builtin.file:
+    path: /etc/topgen
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install topgen's DNS delegations and mail configuration
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/topgen/{{ item }}"
+    dest: /etc/topgen/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - delegations.dns
+    - vmail.cfg
+
+- name: Install topgen's commands into /usr/local/sbin
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/usr/local/sbin/{{ item }}"
+    dest: /usr/local/sbin/{{ item }}
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - topgen-ca.sh
+    - topgen-scrape.sh
+    - topgen-mkdns.sh
+    - topgen-vmail.sh
+
+- name: Create topgen's data directories under {{ topgen_varlib }}
+  ansible.builtin.file:
+    path: "{{ topgen_varlib }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - etc/postfix
+    - vhosts
+    - certs
+    - named
+
+- name: Create the mailbox directory, owned by dovecot's dovenull
+  # topgen-vmail.sh refuses to run otherwise
+  ansible.builtin.file:
+    path: "{{ topgen_varlib }}/vmail"
+    state: directory
+    owner: dovenull
+    group: dovenull
+    mode: "0700"
+
+- name: Create named's data directory
+  # topgen's named.conf writes its dump and statistics files there
+  ansible.builtin.file:
+    path: /var/cache/bind/data
+    state: directory
+    owner: bind
+    group: bind
+    mode: "0755"
+
+- name: Create postfix's private socket directory
+  # topgen's dovecot.conf puts postfix's SASL auth socket there
+  ansible.builtin.file:
+    path: /var/spool/postfix/private
+    state: directory
+    owner: postfix
+    group: root
+    mode: "0755"
+
+- name: Point nginx at topgen's generated configuration
+  # the file is written by topgen-scrape.sh in the content step
+  ansible.builtin.file:
+    src: "{{ topgen_varlib }}/etc/nginx.conf"
+    dest: /etc/nginx/conf.d/topgen.conf
+    state: link
+    force: true
+
+- name: Remove nginx's default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Let named read topgen's files and create /run/named
+  # named runs in the topgen.info CORE node, under the host's AppArmor
+  # profile, and creates /run/named in that node's private /run
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/apparmor.d/local/usr.sbin.named"
+    dest: /etc/apparmor.d/local/usr.sbin.named
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check whether AppArmor is enabled
+  ansible.builtin.command: aa-enabled --quiet
+  register: apparmor_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Reload named's AppArmor profile
+  ansible.builtin.command: apparmor_parser -r /etc/apparmor.d/usr.sbin.named
+  when: apparmor_enabled.rc == 0
+  changed_when: true

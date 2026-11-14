@@ -1,0 +1,124 @@
+---
+# Network: the host's first NIC gets DHCP; the external NIC is left to
+# greybox's RJ45 node.
+- name: Remove cloud-init's netplan configuration
+  # it pins the build VM's NIC by MAC address, which differs on every VM
+  ansible.builtin.file:
+    path: /etc/netplan/50-cloud-init.yaml
+    state: absent
+
+- name: Keep systemd-networkd off the external NIC
+  ansible.builtin.template:
+    src: 10-greybox-ext.network.j2
+    dest: /etc/systemd/network/10-greybox-ext.network
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure the other NICs by DHCP, matched by name
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/systemd/network/20-slatebox.network"
+    dest: /etc/systemd/network/20-slatebox.network
+    owner: root
+    group: root
+    mode: "0644"
+
+# Logins
+- name: Make sudo ask for the password
+  # The remaining tasks still become root: Packer passes the password as
+  # ansible_become_password.
+  ansible.builtin.file:
+    path: /etc/sudoers.d/90-cloud-init-users
+    state: absent
+
+- name: Allow SSH password logins
+  # 55- sorts before the cloud image's 60-cloudimg-settings.conf ("no"); sshd
+  # keeps the first value. A user's cloud-init seed (50-cloud-init.conf) still wins.
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/ssh/sshd_config.d/55-slatebox.conf"
+    dest: /etc/ssh/sshd_config.d/55-slatebox.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Find the build VM's SSH host keys
+  ansible.builtin.find:
+    paths: /etc/ssh
+    patterns: ssh_host_*
+  register: ssh_host_keys
+
+- name: Remove the SSH host keys (each VM generates its own at first boot)
+  # Packer's SSH connection, which Ansible's commands go through, stays open.
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ ssh_host_keys.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+# Cleanup
+- name: Remove downloaded packages (apt-get clean)
+  ansible.builtin.apt:
+    clean: true
+
+- name: Remove the apt package lists
+  ansible.builtin.file:
+    path: /var/lib/apt/lists
+    state: absent
+
+- name: Recreate the empty apt package lists directory
+  ansible.builtin.file:
+    path: /var/lib/apt/lists
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Remove the scratch directory
+  ansible.builtin.file:
+    path: "{{ build_tmp.path }}"
+    state: absent
+
+- name: Reset cloud-init, its logs and the machine ID for the next boot
+  ansible.builtin.command: cloud-init clean --logs --machine-id
+  changed_when: true
+
+# Last: the host and all CORE nodes resolve via 8.8.8.8 inside the simulation
+# (greybox README). A static file replaces the systemd-resolved stub link;
+# systemd-resolved keeps running.
+- name: Remove the systemd-resolved stub link /etc/resolv.conf
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    state: absent
+
+- name: Resolve via the simulated 8.8.8.8
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/resolv.conf"
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Read the host name
+  ansible.builtin.command: hostname
+  register: host_name
+  changed_when: false
+
+- name: Check whether /etc/hosts names the host
+  ansible.builtin.command: grep -qw {{ host_name.stdout }} /etc/hosts
+  register: hosts_has_name
+  changed_when: false
+  failed_when: hosts_has_name.rc > 1
+
+- name: Add the host name to /etc/hosts
+  # with resolv.conf pointing into the simulation, the host can only resolve
+  # its own name from /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: 127.0.1.1 {{ host_name.stdout }}
+  when: hosts_has_name.rc == 1
+
+- name: Discard unused blocks, so the compressed image stays small
+  ansible.builtin.command: fstrim -av
+  changed_when: false
+  failed_when: false

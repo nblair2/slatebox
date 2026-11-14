@@ -6,15 +6,22 @@
 #
 # usage: topgen-scrape.sh DEPTH TIMEOUT URL...
 #   DEPTH    goscrape link depth (1 = the start page and the pages it links to)
-#   TIMEOUT  per-site limit for timeout(1), e.g. 60m; a site that hits it keeps
-#            what was mirrored so far
-# env: TOPGEN_VARLIB (/var/lib/topgen), TOPGEN_SCRAPE_LOG (/var/log/topgen-scrape.log)
+#   TIMEOUT  limit for each site, as for timeout(1): a number with an optional
+#            s, m, h or d suffix, e.g. 60m. Sites are scraped side by side, so
+#            this is also about the time the whole scrape takes. A site that
+#            hits it keeps what was mirrored so far.
+# env: TOPGEN_VARLIB (/var/lib/topgen), TOPGEN_SCRAPE_LOG (/var/log/topgen-scrape.log),
+#      TOPGEN_SCRAPE_JOBS (8): goscrape processes at once, over all sites
+#
+# goscrape fetches one URL at a time, so a deep crawl of a big site is slow.
+# We run several goscrape processes side by side instead (see "fan-out" below).
 set -euo pipefail
 
 [ $# -ge 3 ] || { echo "usage: topgen-scrape.sh DEPTH TIMEOUT URL..." >&2; exit 2; }
 export TOPGEN_VARLIB=${TOPGEN_VARLIB:-/var/lib/topgen} # also for topgen-ca.sh
 ETC=$TOPGEN_VARLIB/etc VH=$TOPGEN_VARLIB/vhosts CERTS=$TOPGEN_VARLIB/certs
 LOG=${TOPGEN_SCRAPE_LOG:-/var/log/topgen-scrape.log}
+JOBS=${TOPGEN_SCRAPE_JOBS:-8}
 TOPGEN_INFO_IP=198.51.100.10 # TEST-NET-2, routed to the topgen.info node
 UA="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
 # matched against the URL path only (goscrape ignores the query string)
@@ -25,21 +32,130 @@ ipv4() { getent ahostsv4 "$1" | awk 'NR == 1 { print $1 }' || true; } # "" if un
 
 depth=$1 limit=$2
 shift 2
+[[ $depth =~ ^[0-9]+$ ]] || die "DEPTH must be a number"
+[[ $JOBS =~ ^[1-9][0-9]*$ ]] || die "TOPGEN_SCRAPE_JOBS must be a positive number"
+[[ $limit =~ ^([0-9]+)([smhd]?)$ ]] ||
+  die "TIMEOUT must be a whole number with an optional s, m, h or d suffix"
+case ${BASH_REMATCH[2]} in
+  m) unit=60 ;;
+  h) unit=3600 ;;
+  d) unit=86400 ;;
+  *) unit=1 ;;
+esac
+# every goscrape run stops at this point (bash's SECONDS counts up from 0)
+deadline=$((SECONDS + 10#${BASH_REMATCH[1]} * unit))
+
 mkdir -p "$ETC" "$VH" "$CERTS"
-: > "$LOG"
+work=$(mktemp -d)
+# every goscrape run logs to its own file in $work; together they become $LOG
+finish() { cat "$work"/*.log > "$LOG" 2>/dev/null || true; rm -rf "$work"; }
+trap finish EXIT
+
+# job NAME DEPTH URL: one goscrape run, stopped at the deadline. Writes
+# $work/NAME.log and NAME.rc (the exit code; 124 = stopped by the deadline).
+job() {
+  local name=$1 depth=$2 url=$3 left=$((deadline - SECONDS)) rc=0
+  if [ "$left" -gt 0 ]; then
+    timeout "$left" goscrape --depth "$depth" --timeout 30 --useragent "$UA" \
+      --exclude "$SKIP" --output "$VH" "$url" > "$work/$name.log" 2>&1 || rc=$?
+  else
+    rc=124
+  fi
+  echo "$rc" > "$work/$name.rc"
+}
+
+# page_job NAME DEPTH URL: job, for a page that still loads on its own host.
+# One that redirects to another host would mirror that site instead, and one
+# that fails would only fail again; NAME.rc says "skip" for those.
+page_job() {
+  local host=${3#*://} final
+  host=${host%%/*}
+  final=$(curl -sL -o /dev/null --max-time 30 -A "$UA" -w '%{http_code} %{url_effective}' "$3" |
+    awk '{ split($2, u, "/"); print $1, u[3] }' || true)
+  if [ "$final" = "200 $host" ]; then
+    job "$@"
+  else
+    echo skip > "$work/$1.rc"
+  fi
+}
+
+# run a command in the background, once fewer than $JOBS are running
+spawn() {
+  while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n || true; done
+  "$@" &
+}
+
+# Fan-out. "goscrape --depth N site" fetches the start page, then everything up
+# to N links away, one URL at a time. The same pages are reached by fetching
+# the start page and the pages it links to (depth 1), then crawling each of
+# those pages to depth N-1, and those crawls can run side by side:
+#   1. every site's start page at depth 1 (all sites at once);
+#   2. every page found in step 1, at depth N-1, $JOBS at a time.
+# All runs write into $VH. goscrape skips assets (images, CSS, ...) already on
+# disk, so a run reuses what earlier ones fetched; pages that several runs
+# reach are fetched again and written with the same content (links in a saved
+# page only depend on its own URL). A run killed at the deadline can leave its
+# current file incomplete, as a single sequential run would.
+first=$depth
+if [ "$depth" -ge 2 ]; then first=1; fi
+: > "$work/sites"
+i=0
 for url; do
+  i=$((i + 1))
   echo "scrape: $url (depth $depth, at most $limit)"
-  rc=0
-  timeout "$limit" goscrape --depth "$depth" --timeout 30 --useragent "$UA" \
-    --exclude "$SKIP" --output "$VH" "$url" >> "$LOG" 2>&1 || rc=$?
+  printf 'site%03d %s\n' "$i" "$url" >> "$work/sites"
+  spawn job "$(printf 'site%03d' "$i")" "$first" "$url"
+done
+wait
+
+pages=()
+while read -r name url; do
+  rc=$(cat "$work/$name.rc")
   case $rc in
     0) ;;
-    124) echo "scrape: $url stopped after $limit, keeping the partial mirror" ;;
-    *) tail -n 50 "$LOG" >&2; die "goscrape $url failed (exit $rc)" ;;
+    124) echo "scrape: $url stopped after $limit, keeping the partial mirror"; continue ;;
+    *) tail -n 50 "$work/$name.log" >&2; die "goscrape $url failed (exit $rc)" ;;
   esac
-done
-echo "scrape: $(grep -c 'Downloading webpage' "$LOG") pages," \
-  "$(grep -c 'Downloading asset' "$LOG") assets, $(grep -c ERROR "$LOG") errors," \
+  # the start page is the first "Downloading webpage"; JSON escapes & as \u0026
+  if [ "$depth" -ge 2 ]; then
+    mapfile -t -O "${#pages[@]}" pages < <(
+      grep 'Downloading webpage' "$work/$name.log" | tail -n +2 |
+        sed 's/.*"url":"//; s/".*//; s/\\u0026/\&/g')
+  fi
+done < "$work/sites"
+
+if [ "${#pages[@]}" -gt 0 ]; then
+  echo "scrape: ${#pages[@]} linked pages to depth $((depth - 1)), $JOBS at a time"
+  # keep only the host directories that step 1 created, should a page_job
+  # still have mirrored another host
+  ls "$VH" > "$work/hosts"
+  i=0
+  for url in "${pages[@]}"; do
+    i=$((i + 1))
+    spawn page_job "$(printf 'page%05d' "$i")" "$((depth - 1))" "$url"
+  done
+  wait
+  for d in "$VH"/*; do
+    grep -qxF "${d##*/}" "$work/hosts" || rm -rf "$d"
+  done
+  skipped=0 failed=0 late=0
+  for f in "$work"/page*.rc; do
+    case $(cat "$f") in
+      0) ;;
+      skip) skipped=$((skipped + 1)) ;;
+      124) late=$((late + 1)) ;;
+      *) failed=$((failed + 1)) ;;
+    esac
+  done
+  [ "$skipped" -eq 0 ] || echo "scrape: skipped $skipped of them (error or redirect to another host)"
+  [ "$late" -eq 0 ] || echo "scrape: $late of them stopped after $limit, keeping the partial mirror"
+  [ "$failed" -eq 0 ] || echo "scrape: $failed of them failed (see $LOG)"
+fi
+finish
+trap - EXIT
+# several runs can fetch the same page: count each URL once
+echo "scrape: $(grep -o 'Downloading webpage.*' "$LOG" | sort -u | wc -l) pages," \
+  "$(grep -o 'Downloading asset.*' "$LOG" | sort -u | wc -l) assets, $(grep -c ERROR "$LOG") errors," \
   "$(du -sh "$VH" | cut -f1) in $VH; details in $LOG"
 
 # keep only plain host names (a start URL with a port gives "host:port")

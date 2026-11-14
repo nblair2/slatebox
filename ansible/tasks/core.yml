@@ -1,0 +1,111 @@
+---
+- name: Create a scratch directory for downloads
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: .slatebox
+  register: build_tmp
+
+- name: Download the CORE package {{ core_version }}
+  ansible.builtin.get_url:
+    url: https://github.com/coreemu/core/releases/download/release-{{ core_version }}/core_{{ core_version }}_amd64.deb
+    dest: "{{ build_tmp.path }}/core.deb"
+    checksum: sha256:{{ core_deb_sha256 }}
+    timeout: 60
+    mode: "0644"
+
+- name: Install the CORE package without its Python step
+  # NO_PYTHON=1 makes the package's postinst skip its pip install: Ubuntu's
+  # Python is too new for CORE's pinned dependencies. The tasks below do that
+  # step with a uv-managed Python 3.12 instead.
+  ansible.builtin.apt:
+    deb: "{{ build_tmp.path }}/core.deb"
+    lock_timeout: 600
+  environment:
+    NO_PYTHON: "1"
+
+- name: Download uv {{ uv_version }}
+  ansible.builtin.get_url:
+    url: https://github.com/astral-sh/uv/releases/download/{{ uv_version }}/uv-x86_64-unknown-linux-gnu.tar.gz
+    dest: "{{ build_tmp.path }}/uv.tar.gz"
+    checksum: sha256:{{ uv_sha256 }}
+    timeout: 60
+    mode: "0644"
+
+- name: Unpack uv into the scratch directory
+  ansible.builtin.unarchive:
+    src: "{{ build_tmp.path }}/uv.tar.gz"
+    dest: "{{ build_tmp.path }}"
+    remote_src: true
+    extra_opts: [--strip-components=1]
+
+- name: Install CORE's Python environment with uv
+  # Only the Python itself and the venv stay in the image (under /opt/core);
+  # uv, its cache and its python3.12 shims stay in the scratch directory.
+  environment:
+    UV_PYTHON_INSTALL_DIR: /opt/core/python
+    UV_PYTHON_BIN_DIR: "{{ build_tmp.path }}/bin"
+    UV_CACHE_DIR: "{{ build_tmp.path }}/cache"
+    UV_LINK_MODE: copy
+  block:
+    - name: Install Python 3.12 into /opt/core/python
+      ansible.builtin.command:
+        argv: ["{{ build_tmp.path }}/uv", python, install, "3.12"]
+        creates: /opt/core/python/cpython-3.12.*
+
+    - name: Create the venv /opt/core/venv
+      ansible.builtin.command:
+        argv: ["{{ build_tmp.path }}/uv", venv, --python, "3.12", /opt/core/venv]
+        creates: /opt/core/venv/bin/python
+
+    - name: Install the CORE wheel into the venv
+      ansible.builtin.command:
+        argv:
+          - "{{ build_tmp.path }}/uv"
+          - pip
+          - install
+          - --python
+          - /opt/core/venv/bin/python
+          - /opt/core/core-{{ core_version }}-py3-none-any.whl
+        creates: /opt/core/venv/bin/core-daemon
+
+# The rest of what the package's postinst does after its pip step, which
+# NO_PYTHON skipped.
+- name: Run core-daemon.service from the venv
+  # The packaged unit has ExecStart=$DAEMON, which the postinst would sed into
+  # the venv's path; this drop-in replaces that ExecStart instead.
+  ansible.builtin.copy:
+    src: "{{ files_dir }}/etc/systemd/system/core-daemon.service.d/venv.conf"
+    dest: /etc/systemd/system/core-daemon.service.d/venv.conf
+    owner: root
+    group: root
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Link CORE's commands into /usr/bin
+  ansible.builtin.file:
+    src: /opt/core/venv/bin/{{ item }}
+    dest: /usr/bin/{{ item }}
+    state: link
+    force: true
+  # the wheel's console scripts
+  loop:
+    - core-cleanup
+    - core-cli
+    - core-daemon
+    - core-gui
+    - core-player
+    - core-route-monitor
+    - core-service-update
+
+- name: Make CORE load slatebox's services (custom_services_dir in core.conf)
+  # An edit of the packaged file: replacing the whole core.conf would also
+  # pin CORE's other defaults. The key is commented out in the package.
+  ansible.builtin.lineinfile:
+    path: /opt/core/etc/core.conf
+    regexp: '^#?custom_services_dir *='
+    line: custom_services_dir = /usr/local/share/slatebox/core_services
+
+- name: Check that the venv imports CORE and gRPC
+  ansible.builtin.command:
+    argv: [/opt/core/venv/bin/python, -c, "import core, grpc"]
+  changed_when: false
