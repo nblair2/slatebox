@@ -13,6 +13,7 @@
 #   only if every site does.
 # env: TOPGEN_VARLIB (/var/lib/topgen), TOPGEN_SCRAPE_LOG (/var/log/topgen-scrape.log),
 #      TOPGEN_SCRAPE_JOBS (8): goscrape processes at once, over all sites
+#      TOPGEN_SCRAPE_PROGRESS (/dev/null): gets a line as each site or page finishes
 #
 # goscrape fetches one URL at a time, so a deep crawl of a big site is slow.
 # We run several goscrape processes side by side instead (see "fan-out" below).
@@ -23,6 +24,7 @@ export TOPGEN_VARLIB=${TOPGEN_VARLIB:-/var/lib/topgen} # also for topgen-ca.sh
 ETC=$TOPGEN_VARLIB/etc VH=$TOPGEN_VARLIB/vhosts CERTS=$TOPGEN_VARLIB/certs
 LOG=${TOPGEN_SCRAPE_LOG:-/var/log/topgen-scrape.log}
 JOBS=${TOPGEN_SCRAPE_JOBS:-8}
+PROGRESS=${TOPGEN_SCRAPE_PROGRESS:-/dev/null}
 TOPGEN_INFO_IP=198.51.100.10 # TEST-NET-2, routed to the topgen.info node
 UA="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
 # matched against the URL path only (goscrape ignores the query string)
@@ -97,10 +99,29 @@ page_job() {
   fi
 }
 
-# run a command in the background, once fewer than $JOBS are running
+# progress NAME URL: report a finished job, counted against $total
+progress() {
+  local name=$1 url=$2 n result
+  case $(cat "$work/$name.rc") in
+    0) result="done" ;;
+    124) result="stopped at the deadline" ;;
+    skip) result=skipped ;;
+    *) result=failed ;;
+  esac
+  # jobs finish concurrently: count and report under one lock
+  {
+    flock 9
+    echo "$url" >> "$work/${name%%[0-9]*}.done"
+    n=$(wc -l < "$work/${name%%[0-9]*}.done")
+    echo "scrape: $(date +%T) [$n/$total] $url $result" >> "$PROGRESS"
+  } 9>> "$work/progress.lock"
+}
+
+# spawn FUNC NAME DEPTH URL: run a job in the background, once fewer than
+# $JOBS are running
 spawn() {
   while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n || true; done
-  "$@" &
+  { "$@" && progress "$2" "$4"; } &
 }
 
 # Fan-out. "goscrape --depth N site" fetches the start page, then everything up
@@ -117,7 +138,7 @@ spawn() {
 first=$depth
 if [ "$depth" -ge 2 ]; then first=1; fi
 : > "$work/sites"
-i=0
+i=0 total=$#
 for url; do
   i=$((i + 1))
   echo "scrape: $url (depth $depth, at most $limit)"
@@ -159,7 +180,7 @@ if [ "${#pages[@]}" -gt 0 ]; then
   # keep only the host directories that step 1 created, should a page_job
   # still have mirrored another host
   ls "$VH" > "$work/hosts"
-  i=0
+  i=0 total=${#pages[@]}
   for url in "${pages[@]}"; do
     i=$((i + 1))
     spawn page_job "$(printf 'page%05d' "$i")" "$((depth - 1))" "$url"
