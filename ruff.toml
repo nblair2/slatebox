@@ -1,0 +1,5 @@
+# Ruff settings for the prek hooks (.pre-commit-config.yaml).
+line-length = 120
+target-version = "py312"
+# tests/ import conftest as a first-party module
+src = [".", "tests"]

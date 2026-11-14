@@ -12,6 +12,7 @@ default route via 12.0.0.41, resolver 8.8.8.8).
 Artifacts go to --out: serial.log, qemu.log, diag.txt (written when anything fails, the
 run times out, or the sim never comes up) and the browser screenshots.
 """
+
 import getpass
 import os
 import re
@@ -49,7 +50,7 @@ def pytest_addoption(parser):
 def sh(cmd, timeout=120, **kw):
     """Run a local shell command, returning Result(rc, combined output)."""
     try:
-        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, **kw)
+        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, check=False, **kw)
         return Result(p.returncode, (p.stdout + p.stderr).strip())
     except subprocess.TimeoutExpired as e:
         return Result(124, f"timed out after {timeout} s: {cmd}\n{e.stdout or ''}{e.stderr or ''}")
@@ -80,8 +81,10 @@ class VM:
 
     def sh(self, cmd, timeout=120):
         """Run cmd as root in the VM (bash, via ssh + sudo)."""
-        ssh = ("sshpass -e ssh -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
-               f"-o ConnectTimeout=10 -p {self.port} slatebox@127.0.0.1")
+        ssh = (
+            "sshpass -e ssh -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+            f"-o ConnectTimeout=10 -p {self.port} slatebox@127.0.0.1"
+        )
         remote = "sudo -S -p '' bash -c " + shlex.quote(cmd)
         env = dict(os.environ, SSHPASS=self.password)
         return sh(f"{ssh} {shlex.quote(remote)}", timeout, input=self.password + "\n", env=env)
@@ -102,7 +105,8 @@ class VM:
         assert r.ok, f"cannot create {self.tap}: {r.out}"
         mem_mib = int(Path("/proc/meminfo").read_text().split()[1]) // 1024
         mem = min(mem_mib - 2048, 8192)  # leave 2 GiB for the host
-        qemu_log = open(self.out / "qemu.log", "w")
+        qemu_log = open(self.out / "qemu.log", "w")  # noqa: SIM115 (qemu writes to it until it exits)
+        # fmt: off
         self.qemu = subprocess.Popen([
             "qemu-system-x86_64", "-machine", "accel=kvm", "-cpu", "host",
             "-smp", str(os.cpu_count()), "-m", str(mem), "-snapshot", "-display", "none",
@@ -113,6 +117,7 @@ class VM:
             "-netdev", f"tap,id=ext,ifname={self.tap},script=no,downscript=no",
             "-device", "virtio-net-pci,netdev=ext,addr=0x4",
         ], stdout=qemu_log, stderr=subprocess.STDOUT, start_new_session=True)  # survives Ctrl-C, for --keep
+        # fmt: on
         time.sleep(3)
         assert self.qemu.poll() is None, f"qemu exited: {(self.out / 'qemu.log').read_text()}"
 
@@ -154,8 +159,7 @@ class External:
         """Run cmd as the invoking user in the ext namespace, with a clean environment."""
         user = os.environ.get("SUDO_USER") or getpass.getuser()
         envs = " ".join(f"{k}={shlex.quote(str(v))}" for k, v in env.items())
-        return sh(f"sudo ip netns exec {self.NS} sudo -u {user} env -i PATH=/usr/bin:/bin {envs} {cmd}",
-                  timeout)
+        return sh(f"sudo ip netns exec {self.NS} sudo -u {user} env -i PATH=/usr/bin:/bin {envs} {cmd}", timeout)
 
     def setup(self):
         self.teardown()  # left over from an interrupted run (--attach)
@@ -240,6 +244,7 @@ def pytest_terminal_summary(terminalreporter):
 
 
 # ---- fixtures ----
+
 
 @pytest.fixture(scope="session")
 def vm(request):

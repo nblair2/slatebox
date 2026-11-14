@@ -70,10 +70,16 @@ job() {
 page_job() {
   local host=${3#*://} final
   host=${host%%/*}
-  final=$(curl -sL -o /dev/null --max-time 30 -A "$UA" -w '%{http_code} %{url_effective}' "$3" |
-    awk '{ split($2, u, "/"); print $1, u[3] }' || true)
+  final=$(curl -sL -o /dev/null --max-time 30 --retry 2 --retry-all-errors -A "$UA" \
+    -w '%{http_code} %{url_effective}' "$3" | awk '{ split($2, u, "/"); print $1, u[3] }' || true)
   if [ "$final" = "200 $host" ]; then
     job "$@"
+    # goscrape fails only if its first page does (a dropped connection, say):
+    # try once more
+    case $(cat "$work/$1.rc") in
+      0 | 124) ;;
+      *) sleep 10; job "$@" ;;
+    esac
   else
     echo skip > "$work/$1.rc"
   fi

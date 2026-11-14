@@ -6,6 +6,7 @@ $HOME (Chromium on Linux reads ~/.pki/nssdb), so the TLS chain is validated
 for real; certificate errors are not ignored. Run by test_4_web.py as the
 invoking user inside the "ext" network namespace.
 """
+
 import json
 import os
 import subprocess
@@ -47,14 +48,19 @@ def visit(page, url, shot, host):
     resp = page.goto(url, wait_until="load", timeout=60_000)
     try:
         page.wait_for_load_state("networkidle", timeout=15_000)
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass  # pages with pollers never go idle; "load" is enough
     page.screenshot(path=shot, full_page=True)
     for event, fn in (("request", on_request), ("response", on_response), ("requestfailed", on_failed)):
         page.remove_listener(event, fn)
-    return {"url": page.url, "status": resp.status if resp else None, "title": page.title(),
-            "text": page.inner_text("body")[:20000], "requested": len(requested),
-            "failed": [f"{why} {u}" for u, why in failed.items()]}
+    return {
+        "url": page.url,
+        "status": resp.status if resp else None,
+        "title": page.title(),
+        "text": page.inner_text("body")[:20000],
+        "requested": len(requested),
+        "failed": [f"{why} {u}" for u, why in failed.items()],
+    }
 
 
 def main(url, ca, out):
@@ -67,11 +73,14 @@ def main(url, ca, out):
         try:
             result["home"] = visit(page, url, f"{out}/browser-home.png", host)
             links = page.eval_on_selector_all("a[href]", "as => as.map(a => a.href)")
-            internal = [l for l in links if urlsplit(l).hostname == host
-                        and urlsplit(l).path not in ("", "/", urlsplit(url).path)]
+            internal = [
+                l
+                for l in links
+                if urlsplit(l).hostname == host and urlsplit(l).path not in ("", "/", urlsplit(url).path)
+            ]
             if internal:
                 result["link"] = visit(page, urljoin(url, internal[0]), f"{out}/browser-link.png", host)
-        except Exception as e:  # e.g. net::ERR_CERT_AUTHORITY_INVALID
+        except Exception as e:  # noqa: BLE001 (reported in the JSON), e.g. net::ERR_CERT_AUTHORITY_INVALID
             result["error"] = str(e).splitlines()[0]
         browser.close()
     print(json.dumps(result))

@@ -1,4 +1,5 @@
 """Packets cross the simulated internet, inside the sim and from outside."""
+
 import ipaddress
 import json
 
@@ -10,7 +11,7 @@ def test_bgp_sessions_established(vm, router):
     """Every BGP neighbor of a sample of routers is Established."""
     r = vm.node(router, "vtysh -c 'show bgp summary json'")
     assert r.ok, r.out
-    peers = json.loads(r.out[r.out.find("{"):])["ipv4Unicast"]["peers"]  # skip vtysh warnings
+    peers = json.loads(r.out[r.out.find("{") :])["ipv4Unicast"]["peers"]  # skip vtysh warnings
     down = {ip: p["state"] for ip, p in peers.items() if p["state"] != "Established"}
     assert peers and not down, f"{router}: {down or 'no peers'}"
 

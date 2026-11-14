@@ -1,4 +1,5 @@
 """Mirrored sites are served over HTTPS with certificates from the TopGen CA."""
+
 import json
 import os
 import sys
@@ -31,8 +32,10 @@ def test_apex_alias_served(vm, vhost):
 
 def test_cert_has_crl_distribution_point(vm, vhost):
     """The vhost certificate points to the CRL on topgen.info."""
-    r = vm.charlie(f"openssl s_client -connect {vhost[0]}:443 -servername {vhost[0]} </dev/null 2>/dev/null"
-                   " | openssl x509 -noout -ext crlDistributionPoints")
+    r = vm.charlie(
+        f"openssl s_client -connect {vhost[0]}:443 -servername {vhost[0]} </dev/null 2>/dev/null"
+        " | openssl x509 -noout -ext crlDistributionPoints"
+    )
     assert "http://topgen.info/topgen_ca.crl" in r.out, r.out
 
 
@@ -67,8 +70,7 @@ def test_browser_renders_vhost_from_external_client(ext, vhost, expect, ca_file)
     internal link works. In --out: browser-home.png, browser-link.png, browser.json."""
     pytest.importorskip("playwright")
     browse = Path(__file__).with_name("browse.py")
-    env = {"PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH",
-                                                      Path.home() / ".cache/ms-playwright")}
+    env = {"PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", Path.home() / ".cache/ms-playwright")}
     r = ext.as_user(f"{sys.executable} {browse} https://{vhost[0]}/ {ca_file} {ca_file.parent}", **env)
     assert r.ok, r.out
     res = json.loads(r.out.splitlines()[-1])
@@ -77,8 +79,12 @@ def test_browser_renders_vhost_from_external_client(ext, vhost, expect, ca_file)
     for name in ("home", "link"):
         assert name in res, "no internal link on the home page"
         page = res[name]
-        print(f"{name}: {page['status']} {page['url']} {page['title']!r}: {page['requested']} same-site"
-              f" requests, {len(page['failed'])} failed", *page["failed"], sep="\n  ")
+        print(
+            f"{name}: {page['status']} {page['url']} {page['title']!r}: {page['requested']} same-site"
+            f" requests, {len(page['failed'])} failed",
+            *page["failed"],
+            sep="\n  ",
+        )
         assert page["status"] == 200
         assert len(page["failed"]) <= 0.2 * page["requested"], "\n".join(page["failed"])
     assert expect.lower() in (res["home"]["title"] + res["home"]["text"]).lower(), res["home"]["title"]

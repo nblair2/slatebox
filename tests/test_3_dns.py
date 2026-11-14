@@ -1,4 +1,5 @@
 """DNS works like the real thing: root -> TLD -> answer, through the in-sim resolver 8.8.8.8."""
+
 import pytest
 
 from conftest import REPO, mail_servers

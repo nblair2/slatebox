@@ -22,16 +22,14 @@ jobs:
       - uses: hashicorp/setup-packer@v3
         with:
           version: ${{ env.PACKER_VERSION }}
-      - run: packer init . && packer fmt -check -diff . && packer validate .
-      - run: sudo apt-get update && sudo apt-get install -y shellcheck libxml2-utils
-      - run: |
-          shellcheck tests/smoke.sh files/usr/local/sbin/{topgen-scrape.sh,topgen-ca.sh,topgen-boot,frr-shim}
-          # legacy upstream style
-          shellcheck -S error files/usr/local/sbin/topgen-{mkdns,vmail}.sh
-          xmllint --noout files/etc/greybox/map.xml
-          if grep -qP '\t' files/etc/greybox/map.xml; then echo "map.xml contains tabs"; exit 1; fi
-          test "$(grep -c '@EXT_IFACE@' files/etc/greybox/map.xml)" -eq 1
-          python3 -m py_compile files/usr/local/sbin/greybox-ctl files/usr/local/share/slatebox/core_services/slatebox_svcs/userdefined.py
+      # Not a prek hook: it downloads the plugins (packer init) and needs
+      # ansible-playbook, which the runner image ships.
+      - run: packer init . && packer validate .
+      # .pre-commit-config.yaml; its packer fmt hook uses the packer above.
+      # latest-known: the newest prek whose checksum this action release bundles.
+      - uses: j178/prek-action@v3.1.0
+        with:
+          prek-version: latest-known
 
   build:
     needs: lint
@@ -48,6 +46,13 @@ jobs:
           sudo udevadm settle
           [ -w /dev/kvm ] || { echo "::error::/dev/kvm is not writable; this runner has no usable KVM"; ls -l /dev/kvm; exit 1; }
       - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils xorriso sshpass busybox dnsutils
+      # before the build, so a broken test setup fails fast
+      - name: Install the test tools
+        run: |
+          sudo apt-get install -y libnss3-tools traceroute
+          python3 -m venv .venv
+          .venv/bin/pip install -r tests/requirements.txt
+          .venv/bin/playwright install --with-deps --only-shell chromium
       - uses: hashicorp/setup-packer@v3
         with:
           version: ${{ env.PACKER_VERSION }}
@@ -71,9 +76,18 @@ jobs:
           } >>"$GITHUB_ENV"
       - run: packer init . && packer build -color=false -timestamp-ui -var "output_dir=$BUILD/image" .
       - run: df -h "$BUILD" && ls -l "$BUILD/image"
-      # --foreground: on timeout only smoke.sh gets SIGTERM, so qemu stays up for its diag()
-      - run: timeout --foreground 40m tests/smoke.sh "$BUILD/image/slatebox.qcow2"
-        timeout-minutes: 45
+      # Boots the image and runs tests/test_*.py. --deadline (minutes) stops the
+      # run with diagnostics before the step's timeout would kill it.
+      - name: Test the image
+        run: .venv/bin/python -m pytest tests --image "$BUILD/image/slatebox.qcow2" --deadline 50 --junitxml=test-output/junit.xml
+        timeout-minutes: 60
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-output
+          path: test-output/
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@v7
         if: success()
         with:
@@ -88,5 +102,4 @@ jobs:
           path: |
             ${{ env.BUILD }}/packer.log
             serial-*.log
-            smoke-diag.txt
           retention-days: 7

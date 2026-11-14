@@ -34,7 +34,9 @@ from them were taken from these upstream commits and adapted for Ubuntu, CORE 9 
 | `slatebox.pkr.hcl`, `variables.pkr.hcl` | Packer build |
 | `ansible/` | Provisioning playbook, run by Packer against the build VM |
 | `files/` | Static files the playbook installs, each at its installed path |
-| `tests/smoke.sh` | Boots the image and checks it end to end |
+| `tests/` | pytest suite that boots the image and checks it end to end (`test_1_boot` … `test_5_mail`) |
+| `.pre-commit-config.yaml`, `ruff.toml` | Lint hooks, run with prek |
+| `.github/dependabot.yml` | Weekly updates of actions, test requirements and hook revisions |
 | `.github/workflows/build.yml` | CI |
 
 ## How the image is provisioned
@@ -63,28 +65,54 @@ read from the CI log.
 On every push that changes more than `*.md` and `LICENSE.*` files (and on manual dispatch),
 `.github/workflows/build.yml` runs two jobs:
 
-1. **lint**: `packer fmt` and `packer validate`, shellcheck, `xmllint` on the map, and a Python
-   syntax check of `greybox-ctl` and the CORE service.
-2. **build**: enables KVM on the runner, runs `packer build`, then `tests/smoke.sh` on the image.
-   The smoke test boots the image with a second NIC on a tap device, waits for the map to start,
-   and checks routing, DNS, HTTPS with the TopGen CA, the CRL, mail, and a DHCP lease from
-   outside. On success the image is uploaded as the `slatebox-qcow2` artifact (kept 3 days); on
-   failure the Packer log, serial console logs and smoke diagnostics are uploaded instead.
+1. **lint**: `packer validate`, then the prek hooks (see [Linting](#linting)).
+2. **build**: enables KVM on the runner, runs `packer build`, then the pytest suite in `tests/` on the image.
+   The suite boots the image with a second NIC on a tap device, waits for the map to reach RUNTIME and
+   for routing to converge, then checks, file by file: boot (services, RUNTIME, topgen daemons), routing
+   (BGP sessions, ping/traceroute, a DHCP lease from outside), DNS (root → TLD → resolver, PTR, MX, router
+   names, user records), web (HTTPS with the TopGen CA, CRL, landing page, and headless Chromium rendering
+   the site from outside the sim) and mail (IMAPS, SMTP submission, cross-domain delivery). Logs,
+   diagnostics, screenshots and JUnit XML are uploaded as the `test-output` artifact; on success the image
+   is uploaded as `slatebox-qcow2` (kept 3 days); on failure the Packer log and serial console logs are
+   also uploaded.
 
-A build takes about two hours, most of it the site scrape. A depth-3 crawl of a large site is
-bounded by `scrape_timeout` (default `60m` per site); a site that hits the limit yields a partial
-mirror.
+Most of the build is the site scrape. With the default `scrape_depth` of 1, www.cmu.edu takes a few
+minutes and yields about 120 MB. Deeper crawls of a large site take much longer; each site is bounded
+by `scrape_timeout` (default `60m`), and a site that hits the limit yields a partial mirror.
 
 ## Building locally
 
 You need Packer 1.10 or later, Ansible (`ansible-core` 2.20 or later, which supports the image's Python
-3.14; e.g. `pipx install ansible-core`), `qemu-system-x86`, `qemu-utils`, `xorriso` and a working `/dev/kvm`. The smoke test also needs `sshpass`, `busybox`, `dig` and sudo.
+3.14; e.g. `pipx install ansible-core`), `qemu-system-x86`, `qemu-utils`, `xorriso` and a working `/dev/kvm`.
 
 ```sh
 packer init .
 packer build .                                  # -> build/image/slatebox.qcow2
-packer build -var 'scrape_sites=["https://example.com"]' -var scrape_depth=1 .
-tests/smoke.sh build/image/slatebox.qcow2
+packer build -var 'scrape_sites=["https://example.com"]' .
+```
+
+The tests need sudo, `sshpass`, `busybox`, `dig`, `certutil` (`libnss3-tools`) and Python 3:
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install -r tests/requirements.txt
+.venv/bin/playwright install --with-deps --only-shell chromium
+.venv/bin/python -m pytest tests --image build/image/slatebox.qcow2
+```
+
+Add `--keep` to leave the VM running and then iterate with `--attach` (no reboot), e.g.
+`.venv/bin/python -m pytest tests --attach -k dns`. Results, `diag.txt` and screenshots go to
+`test-output/`; `pytest tests --help` lists the options (vhost, expected text, ports, deadline).
+
+## Linting
+
+The hooks in `.pre-commit-config.yaml` run with [prek](https://github.com/j178/prek) (it also reads
+pre-commit configurations): hygiene fixers, shellcheck, ruff, ansible-lint, actionlint, codespell,
+`packer fmt` and checks of the greybox map. The `packer fmt` hook needs `packer` on `PATH`.
+
+```sh
+uv tool install prek        # or: pipx install prek, pip install prek
+prek install                # run the hooks on every commit
+prek run --all-files        # what CI runs
 ```
 
 ## Variables

@@ -6,6 +6,7 @@ interface stands in for it when that NIC is missing.
 
 usage: greybox-ctl start [map.xml] | stop | status | exec <node-name> <cmd...>
 """
+
 import os
 import shlex
 import subprocess
