@@ -21,7 +21,7 @@ UA="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
 SKIP='\.(mp4|m4v|mov|avi|mkv|webm|mp3|wav|ogg|zip|tgz|gz|bz2|xz|7z|rar|iso|dmg|exe|msi)$'
 
 die() { echo "topgen-scrape.sh: $*" >&2; exit 1; }
-ipv4() { getent ahostsv4 "$1" | awk 'NR == 1 { print $1 }'; }
+ipv4() { getent ahostsv4 "$1" | awk 'NR == 1 { print $1 }' || true; } # "" if unresolvable
 
 depth=$1 limit=$2
 shift 2

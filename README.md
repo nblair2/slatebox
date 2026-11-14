@@ -37,7 +37,8 @@ from them were taken from these upstream commits and adapted for Ubuntu, CORE 9 
 
 ## How CI builds it
 
-On every push (and on manual dispatch), `.github/workflows/build.yml` runs two jobs:
+On every push that changes more than `*.md` and `LICENSE.*` files (and on manual dispatch),
+`.github/workflows/build.yml` runs two jobs:
 
 1. **lint**: `packer fmt` and `packer validate`, shellcheck, `xmllint` on the map, and a Python
    syntax check of `greybox-ctl` and the CORE service.
@@ -47,7 +48,9 @@ On every push (and on manual dispatch), `.github/workflows/build.yml` runs two j
    outside. On success the image is uploaded as the `slatebox-qcow2` artifact (kept 3 days); on
    failure the Packer log, serial console logs and smoke diagnostics are uploaded instead.
 
-A build takes about two hours, most of it the site scrape.
+A build takes about two hours, most of it the site scrape. A depth-3 crawl of a large site is
+bounded by `scrape_timeout` (default `60m` per site); a site that hits the limit yields a partial
+mirror.
 
 ## Building locally
 
@@ -85,10 +88,11 @@ The RJ45 node is attached to `iap1-rtr.disa.mil`, which owns `12.0.0.0/24`:
 - DHCP on that router hands out `12.0.0.100` to `12.0.0.250`, with `12.0.0.41` as gateway and
   `8.8.8.8` as DNS server.
 
-Connect machines to the VM's `ext_iface` NIC (the second NIC, `ens4`, on a typical KVM setup) and
-they get an address and reach the simulated Internet. The host itself does not configure that
-NIC. If the NIC is missing at boot, `greybox-ctl` creates a dummy interface with that name so the
-map still starts.
+Connect machines to the VM's `ext_iface` NIC and they get an address and reach the simulated
+Internet. The host itself does not configure that NIC. `ext_iface` must match the name the target
+hypervisor gives the VM's second NIC: `ens4` with QEMU's default `pc` machine type, but e.g.
+`enp2s0` on `q35`. If the named NIC is absent at boot, the simulation still starts, with a dummy
+interface of that name in its place and no external link.
 
 To use a different NIC on a built image, change the name in both
 `/etc/default/greybox` (`GREYBOX_EXT_IFACE=`) and `/etc/systemd/network/10-greybox-ext.network`

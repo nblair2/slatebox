@@ -1,6 +1,7 @@
 name: build
 on:
   push:
+    paths-ignore: ['**.md', 'LICENSE.*']
   workflow_dispatch:
 
 concurrency:
@@ -44,6 +45,8 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          [ -w /dev/kvm ] || { echo "::error::/dev/kvm is not writable; this runner has no usable KVM"; ls -l /dev/kvm; exit 1; }
       - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils xorriso sshpass busybox dnsutils
       - uses: hashicorp/setup-packer@v3
         with:
@@ -66,7 +69,8 @@ jobs:
           } >>"$GITHUB_ENV"
       - run: packer init . && packer build -color=false -timestamp-ui -var "output_dir=$BUILD/image" .
       - run: df -h "$BUILD" && ls -l "$BUILD/image"
-      - run: tests/smoke.sh "$BUILD/image/slatebox.qcow2"
+      # --foreground: on timeout only smoke.sh gets SIGTERM, so qemu stays up for its diag()
+      - run: timeout --foreground 40m tests/smoke.sh "$BUILD/image/slatebox.qcow2"
         timeout-minutes: 45
       - uses: actions/upload-artifact@v7
         if: success()
@@ -81,7 +85,6 @@ jobs:
           name: logs
           path: |
             ${{ env.BUILD }}/packer.log
-            ${{ env.BUILD }}/smoke-diag.txt
             serial-*.log
             smoke-diag.txt
           retention-days: 7

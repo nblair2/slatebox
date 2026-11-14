@@ -16,14 +16,19 @@ PORT=2222
 
 cleanup() { kill "$QEMU" 2>/dev/null; sudo ip netns del ext 2>/dev/null; sudo ip link del tap0 2>/dev/null; }
 sudo ip tuntap add dev tap0 mode tap user "$(id -un)" || exit 1
+# size to the runner: all CPUs, memory up to 8 GiB leaving 2 GiB for the host
+MEM=$(($(awk '/^MemTotal/ { print int($2 / 1024) }' /proc/meminfo) - 2048))
+((MEM <= 8192)) || MEM=8192
 # explicit PCI slots: the external NIC at 0x4 is ens4 in the guest
-qemu-system-x86_64 -machine accel=kvm -cpu host -smp 4 -m 8192 -snapshot -display none \
+qemu-system-x86_64 -machine accel=kvm -cpu host -smp "$(nproc)" -m "$MEM" -snapshot -display none \
   -serial file:serial-smoke.log \
   -drive file="$IMG",if=none,id=d0 -device virtio-blk-pci,drive=d0,addr=0x5 \
   -netdev user,id=mgmt,hostfwd=tcp:127.0.0.1:$PORT-:22 -device virtio-net-pci,netdev=mgmt,addr=0x3 \
   -netdev tap,id=ext,ifname=tap0,script=no,downscript=no -device virtio-net-pci,netdev=ext,addr=0x4 &
 QEMU=$!
 trap cleanup EXIT
+# on a timeout (CI runs "timeout --foreground", which leaves qemu running) collect diagnostics
+trap 'die "terminated (timeout?)"' TERM
 
 # vm CMD: run CMD as root in the VM (at most 120 s)
 vm() {
@@ -45,6 +50,8 @@ diag() {
     greybox-ctl status; cat /etc/default/greybox; ip -br link | head -20; ip -s link show ens4
     cat /var/lib/topgen/etc/hosts.nginx
     greybox-ctl exec topgen.info ps -ef
+    greybox-ctl exec topgen.info tail -50 /var/log/dovecot.log /var/log/nginx/error.log
+    journalctl -b --no-pager -t named | tail -50
     greybox-ctl exec iap1-rtr.disa.mil sh -c 'ps -ef | grep [d]hcpd; ip -br addr'
     greybox-ctl exec iap4-rtr.disa.mil vtysh -c 'show bgp summary'
     ls -d /tmp/pycore.*" 2>&1 | tee "$DIAG"
