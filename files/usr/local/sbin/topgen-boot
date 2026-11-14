@@ -2,30 +2,94 @@
 
 # TopGen Container start/stop/status (glsomlo@cert.org, Oct. 2015)
 # Run on node topgen.info by its UserDefined service in /etc/greybox/map.xml.
+#
+#   start, stop, restart, status   the topgen daemons
+#   dns          regenerate the bind9 configuration (start does this too)
+#   reload-dns   regenerate it and make the running named use it:
+#                  sudo greybox-ctl exec topgen.info topgen-boot reload-dns
+#
+# DNS data comes from the scraped and mail hosts, the greybox backbone, the
+# delegations in /etc/topgen/delegations.dns, and user records in
+# /etc/topgen/dns.d/*.hosts ("IP name..." per line, like /etc/hosts).
+# TOPGEN_VARLIB and TOPGEN_ETC exist for tests.
+
+PATH=$PATH:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+V=${TOPGEN_VARLIB:-/var/lib/topgen}
+E=${TOPGEN_ETC:-/etc/topgen}
+# user records after cleanup; not named hosts.*: their addresses belong to
+# other machines, so start must not add them to lo
+CUSTOM=$V/etc/custom-dns.hosts
+
+# Print "IP name" for every valid name in the user files; report bad lines.
+custom_records() {
+  for f in "$E"/dns.d/*.hosts; do
+    [ -f "$f" ] || continue
+    awk -v file="$f" '
+      { sub(/#.*/, ""); $0 = tolower($0) }
+      NF == 0 { next }
+      {
+        ok = split($1, o, ".") == 4 && NF >= 2
+        for (i = 1; ok && i <= 4; i++) ok = o[i] ~ /^[0-9]+$/ && o[i] <= 255
+        for (i = 2; ok && i <= NF; i++) {
+          sub(/\.$/, "", $i)
+          ok = $i ~ /^([a-z0-9_]([a-z0-9_-]*[a-z0-9])?\.)+[a-z]([a-z0-9-]*[a-z0-9])?$/
+        }
+        if (!ok) { printf "topgen-boot: %s:%d: skipped: %s\n", file, NR, $0 > "/dev/stderr"; next }
+        for (i = 2; i <= NF; i++) print $1, $i
+      }' "$f"
+  done
+}
+
+# topgen-mkdns.sh rewrites named.conf and the zones from scratch, then we check
+# the result. $1 is an extra hosts file (or nothing).
+mkdns() {
+  topgen-mkdns.sh -f -q -w "$V/etc/hosts.nginx" -m "$V/etc/hosts.vmail" \
+    -d "$E/delegations.dns" -n "$V/etc/hosts.named" -c "$V/etc/named.conf" \
+    -z "$V/named" -x /etc/greybox/backbone.hosts ${1:+-x "$1"} &&
+    out=$(named-checkconf -z "$V/etc/named.conf" 2>&1) || {
+      echo "$out" | grep -v ': loaded serial' >&2
+      return 1
+    }
+}
+
+dns() {
+  custom_records > "$CUSTOM"
+  mkdns "$CUSTOM" && return
+  echo "topgen-boot: DNS with $E/dns.d failed, using the built-in records only" >&2
+  mkdns
+}
+
+reload_dns() {
+  dns || return
+  pidof named >/dev/null || { echo "topgen-boot: named is not running" >&2; return 1; }
+  # reload picks up new zones; flush drops the caching view's old answers
+  /usr/sbin/rndc reload >/dev/null && /usr/sbin/rndc flush
+}
 
 status() {
   pidof named && pidof nginx && pidof master && pidof dovecot
 }
 
 start() {
-  awk '{print $1}' /var/lib/topgen/etc/hosts.* | sort -u | while read -r i; do
+  dns
+  awk '{print $1}' "$V"/etc/hosts.* | sort -u | while read -r i; do
     /usr/sbin/ip addr add "$i" scope global dev lo
   done
-  [ -s /var/lib/topgen/etc/named.conf ] && \
-    /usr/sbin/named -u bind -c /var/lib/topgen/etc/named.conf
-  [ -s /var/lib/topgen/etc/nginx.conf ] && \
+  [ -s "$V/etc/named.conf" ] && \
+    /usr/sbin/named -u bind -c "$V/etc/named.conf"
+  [ -s "$V/etc/nginx.conf" ] && \
     /usr/sbin/nginx
-  [ -s /var/lib/topgen/etc/postfix/main.cf ] && \
-    /usr/sbin/postfix -c /var/lib/topgen/etc/postfix start
-  [ -s /var/lib/topgen/etc/postfix/dovecot.conf ] && \
-    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf </dev/null >/dev/null 2>&1
+  [ -s "$V/etc/postfix/main.cf" ] && \
+    /usr/sbin/postfix -c "$V/etc/postfix" start
+  [ -s "$V/etc/postfix/dovecot.conf" ] && \
+    /usr/sbin/dovecot -c "$V/etc/postfix/dovecot.conf" </dev/null >/dev/null 2>&1
 }
 
 stop() {
   pidof dovecot && \
-    /usr/sbin/dovecot -c /var/lib/topgen/etc/postfix/dovecot.conf stop
+    /usr/sbin/dovecot -c "$V/etc/postfix/dovecot.conf" stop
   pidof master && \
-    /usr/sbin/postfix -c /var/lib/topgen/etc/postfix stop
+    /usr/sbin/postfix -c "$V/etc/postfix" stop
   pidof nginx && \
     /usr/sbin/nginx -s quit
   pidof named && \
@@ -39,11 +103,14 @@ restart() {
 }
 
 case "$1" in
-  start|stop|restart|status)
+  start|stop|restart|status|dns)
     $1
     ;;
+  reload-dns)
+    reload_dns
+    ;;
   *)
-    echo "Usage: $0 {start|stop|restart|status}"
+    echo "Usage: $0 {start|stop|restart|status|dns|reload-dns}"
     exit 2
     ;;
 esac

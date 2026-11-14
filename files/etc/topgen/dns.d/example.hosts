@@ -1,0 +1,15 @@
+# Custom DNS records for the simulated internet.
+#
+# Every /etc/topgen/dns.d/*.hosts file is read when the simulation starts, or
+# when you run:  sudo greybox-ctl exec topgen.info topgen-boot reload-dns
+#
+# Format as in /etc/hosts: an IPv4 address, then one or more names. Any top
+# level domain works, including made-up ones: the root and TLD servers get a
+# zone for it, and every address gets a PTR record. Only A and PTR records.
+# A name listed here wins over the same name from the scraped sites.
+# These lines only add DNS records: the machine at the address must exist
+# (e.g. a VM on the external 12.0.0.0/24 network).
+#
+#12.0.0.50    intranet.example.com example.com
+#12.0.0.51    mail.foo.org
+#12.0.0.52    portal.range.lab
