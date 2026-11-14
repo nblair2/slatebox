@@ -132,7 +132,7 @@ The optional command line arguments are:
 
     -q               do not print warnings or a success notification
                      (output will still be generated if exiting with an error).
- 
+
 Generate bind9 configuration (named.conf, zone files, and a list
 of DNS virtual hosts) based on a given hosts file (containing a
 list of <ip_addr fqdn> pairs) and a list of 2nd-level domain
@@ -355,7 +355,7 @@ done
   echo -e "};\n\nacl \"tld_addrs\" {"
   for NS in "${!TOPLEVEL_NS[@]}"; do
     echo -e "\t${TOPLEVEL_NS[$NS]}/32;        /* $NS */"
-  done 
+  done
 } > $NAMED_CONF
 
 # full path+name of root zone file:
@@ -611,4 +611,3 @@ Required next steps may include:
 "
 
 [ "$QUIET_GEN" == "yes" ] || echo "$SUCCESS_BLURB"
-
