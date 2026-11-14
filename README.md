@@ -23,17 +23,40 @@ from them were taken from these upstream commits and adapted for Ubuntu, CORE 9 
   and is now maintained by hand.
 
 `greybox-ctl`, `frr-shim`, the CORE `UserDefined` service, `topgen-ca.sh` and the rest of
-`topgen-scrape.sh` are slatebox's own. Everything that goes into the image lives under `files/`, at its installed path.
+`topgen-scrape.sh` are slatebox's own. Every static file that goes into the image lives under
+`files/`, at its installed path; the two files that depend on `ext_iface` are templates in
+`ansible/templates/`.
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `slatebox.pkr.hcl`, `variables.pkr.hcl` | Packer build |
-| `scripts/provision.sh` | Runs as root in the build VM: packages, CORE, overlay, content, checks |
-| `files/` | Copied onto the image's `/` |
+| `ansible/` | Provisioning playbook, run by Packer against the build VM |
+| `files/` | Static files the playbook installs, each at its installed path |
 | `tests/smoke.sh` | Boots the image and checks it end to end |
 | `.github/workflows/build.yml` | CI |
+
+## How the image is provisioned
+
+Packer boots the Ubuntu cloud image and runs `ansible/playbook.yml` with its `ansible` provisioner:
+`ansible-playbook` runs on the build host and reaches the VM through Packer's SSH connection. The
+playbook runs these task files in order, as root; their task names read as the build log:
+
+| Task file | Does |
+|---|---|
+| `packages.yml` | waits for cloud-init, preseeds postfix, upgrades, installs the service packages, disables their host units |
+| `core.yml` | installs CORE 9.2.1 with a uv-managed Python 3.12 venv in `/opt/core` |
+| `goscrape.yml` | installs the goscrape binary |
+| `greybox.yml` | installs the map, `greybox-ctl`, the FRR shim and `greybox.service` |
+| `topgen.yml` | installs the topgen scripts and directories, nginx and AppArmor glue |
+| `content.yml` | creates the CA, mirrors the sites, generates mail and DNS configuration, the CRL |
+| `verify.yml` | checks the generated nginx, named, postfix, dovecot and certificate files |
+| `finalize.yml` | networking, logins, cleanup, `resolv.conf` |
+
+The Packer variables `ext_iface`, `scrape_sites`, `scrape_depth` and `scrape_timeout` reach the
+playbook as extra vars. `ansible/ansible.cfg` prints task results as YAML, so a failure can be
+read from the CI log.
 
 ## How CI builds it
 
@@ -54,8 +77,8 @@ mirror.
 
 ## Building locally
 
-You need Packer 1.10 or later, `qemu-system-x86`, `qemu-utils`, `xorriso` and a working
-`/dev/kvm`. The smoke test also needs `sshpass`, `busybox`, `dig` and sudo.
+You need Packer 1.10 or later, Ansible (`ansible-core` 2.20 or later, which supports the image's Python
+3.14; e.g. `pipx install ansible-core`), `qemu-system-x86`, `qemu-utils`, `xorriso` and a working `/dev/kvm`. The smoke test also needs `sshpass`, `busybox`, `dig` and sudo.
 
 ```sh
 packer init .
@@ -78,7 +101,8 @@ tests/smoke.sh build/image/slatebox.qcow2
 | `scrape_depth` | `3` | Link depth per site |
 | `scrape_timeout` | `60m` | Time limit per site; a partial mirror is kept |
 
-CORE, uv, Python and goscrape versions are pinned in `scripts/provision.sh`.
+CORE, uv, Python and goscrape versions (and the download checksums) are pinned in
+`ansible/playbook.yml`.
 
 ## External interface
 

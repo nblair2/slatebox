@@ -9,7 +9,7 @@ tap device --tap on this machine. The `ext` fixture moves it into the network
 namespace "ext" and makes it an external client of the sim (DHCP lease,
 default route via 12.0.0.41, resolver 8.8.8.8).
 
-Artifacts go to --out: serial.log, diag.txt (written when anything fails, the
+Artifacts go to --out: serial.log, qemu.log, diag.txt (written when anything fails, the
 run times out, or the sim never comes up) and the browser screenshots.
 """
 import getpass
@@ -55,6 +55,12 @@ def sh(cmd, timeout=120, **kw):
         return Result(124, f"timed out after {timeout} s: {cmd}\n{e.stdout or ''}{e.stderr or ''}")
 
 
+def log(msg):
+    """Print a progress line live, past pytest's output capture."""
+    with _state["config"].pluginmanager.getplugin("capturemanager").global_and_fixture_disabled():
+        print(msg, flush=True)
+
+
 def retry(fn, tries, delay=10):
     """Call fn() until its result is ok, at most `tries` times; return the last result."""
     for i in range(tries):
@@ -91,10 +97,12 @@ class VM:
     def boot(self, image):
         """Start qemu: user-net NIC (ssh on --ssh-port) and --tap as ens4 (PCI slot 4)."""
         user = getpass.getuser()
+        sh(f"sudo ip link del {self.tap}")  # left over from an interrupted run
         r = sh(f"sudo ip tuntap add dev {self.tap} mode tap user {user} && sudo ip link set {self.tap} up")
         assert r.ok, f"cannot create {self.tap}: {r.out}"
         mem_mib = int(Path("/proc/meminfo").read_text().split()[1]) // 1024
         mem = min(mem_mib - 2048, 8192)  # leave 2 GiB for the host
+        qemu_log = open(self.out / "qemu.log", "w")
         self.qemu = subprocess.Popen([
             "qemu-system-x86_64", "-machine", "accel=kvm", "-cpu", "host",
             "-smp", str(os.cpu_count()), "-m", str(mem), "-snapshot", "-display", "none",
@@ -104,19 +112,21 @@ class VM:
             "-device", "virtio-net-pci,netdev=mgmt,addr=0x3",
             "-netdev", f"tap,id=ext,ifname={self.tap},script=no,downscript=no",
             "-device", "virtio-net-pci,netdev=ext,addr=0x4",
-        ], start_new_session=True)  # survives Ctrl-C, for --keep
+        ], stdout=qemu_log, stderr=subprocess.STDOUT, start_new_session=True)  # survives Ctrl-C, for --keep
+        time.sleep(3)
+        assert self.qemu.poll() is None, f"qemu exited: {(self.out / 'qemu.log').read_text()}"
 
     def wait_ready(self):
         """Wait for ssh (5 min), greybox.service (20 min) and the CORE session in RUNTIME."""
         r = retry(lambda: self.sh("true"), 30)
         assert r.ok, f"no ssh on port {self.port} after 5 min: {r.out}"
-        print("ssh is up; waiting for greybox.service")
+        log("ssh is up; waiting for greybox.service")
         t0 = time.monotonic()
         while (state := self.sh("systemctl is-active greybox.service").out) != "active":
             assert state != "failed", "greybox.service failed"
             assert time.monotonic() - t0 < 1200, f"greybox.service still '{state}' after 20 min"
             time.sleep(10)
-        print(f"greybox.service active after {time.monotonic() - t0:.0f} s")
+        log(f"greybox.service active after {time.monotonic() - t0:.0f} s")
         r = self.sh("greybox-ctl status")
         assert "RUNTIME" in r.out, f"CORE session not in RUNTIME: {r.out}"
 
@@ -132,9 +142,9 @@ class External:
 
     NS = "ext"
 
-    def __init__(self, tap, out):
-        self.tap, self.out = tap, out
-        self.ip, self.lease_log = None, ""
+    def __init__(self, tap):
+        self.tap = tap
+        self.ip, self.lease_log, self.last_state = None, "", ""
 
     def sh(self, cmd, timeout=120):
         """Run cmd as root in the ext namespace."""
@@ -148,6 +158,7 @@ class External:
                   timeout)
 
     def setup(self):
+        self.teardown()  # left over from an interrupted run (--attach)
         # ip netns exec bind-mounts these over /etc: the sim's resolver, and DNS
         # only (no systemd-resolved, which would answer from the real internet)
         etc = Path(f"/etc/netns/{self.NS}")
@@ -164,16 +175,21 @@ class External:
         self.ip = m.group(1)
         r = self.sh(f"ip addr add {self.ip}/24 dev {self.tap} && ip route add default via {EXT_GW}")
         assert r.ok, r.out
-        print(f"external client: {self.ip} on {self.tap} in netns {self.NS}")
+        log(f"external client: {self.ip} on {self.tap} in netns {self.NS}")
+
+    def state(self):
+        return self.sh("ip -s addr; ip route; cat /etc/resolv.conf").out
 
     def teardown(self):
+        if self.ip:
+            self.last_state = self.state()  # for write_diag, which runs later
         # hand the tap back (deleting the netns would destroy it, breaking --attach)
         sh(f"sudo ip -n {self.NS} link set {self.tap} netns 1; sudo ip netns del {self.NS}")
 
 
 # ---- session state, diagnostics, deadline ----
 
-_state = {"vm": None, "ext": None, "diag": None}
+_state = {"vm": None, "ext": None, "diag": None, "config": None}
 
 
 def write_diag(reason):
@@ -183,7 +199,7 @@ def write_diag(reason):
         return
     path = vm.out / "diag.txt"
     _state["diag"] = path
-    script = f"""set -x
+    script = """set -x
 systemctl --no-pager status greybox core-daemon
 journalctl -b --no-pager -u core-daemon -u greybox | tail -300
 journalctl -k --no-pager | grep -i denied | tail -50
@@ -196,9 +212,8 @@ greybox-ctl exec iap1-rtr.disa.mil sh -c 'ps -ef | grep [d]hcpd; ip -br addr'
 greybox-ctl exec iap4-rtr.disa.mil vtysh -c 'show bgp summary'
 ls -d /tmp/pycore.*"""
     parts = [f"reason: {reason}", "=== VM", vm.sh(script, 300).out]
-    parts += ["=== external client (netns ext)",
-              sh(f"sudo ip netns exec ext sh -c 'ip -s addr; ip route; cat /etc/resolv.conf'").out,
-              ext.lease_log if ext else "(not set up)"]
+    if ext:
+        parts += ["=== external client (netns ext)", ext.last_state or ext.state(), ext.lease_log]
     serial = vm.out / "serial.log"
     if serial.exists():
         parts += ["=== tail serial.log", "\n".join(serial.read_text(errors="replace").splitlines()[-100:])]
@@ -211,6 +226,7 @@ def _stop_run(signum, _frame):
 
 
 def pytest_configure(config):
+    _state["config"] = config
     if hasattr(config.option, "deadline"):  # not for --help
         signal.signal(signal.SIGTERM, _stop_run)
         signal.signal(signal.SIGALRM, _stop_run)
@@ -232,19 +248,21 @@ def vm(request):
     v = VM(cfg)
     v.out.mkdir(parents=True, exist_ok=True)
     _state["vm"] = v
-    if not cfg.getoption("attach"):
-        image = cfg.getoption("image")
-        assert image, "give --image IMAGE.qcow2 (or --attach)"
-        v.boot(image)
-        if not cfg.getoption("keep"):
-            request.addfinalizer(v.stop)
-        else:
-            print(f"\n--keep: qemu pid {v.qemu.pid} stays up; rerun with --attach")
     try:
+        if not cfg.getoption("attach"):
+            image = cfg.getoption("image")
+            assert image, "give --image IMAGE.qcow2 (or --attach)"
+            if not cfg.getoption("keep"):
+                request.addfinalizer(v.stop)
+            v.boot(image)
+            if cfg.getoption("keep"):
+                log(f"--keep: qemu pid {v.qemu.pid} stays up; rerun with --attach")
+        log(f"waiting for the VM (ssh port {v.port}, tap {v.tap})")
         v.wait_ready()
     except AssertionError as e:
-        write_diag(f"the sim never came up: {e}")
-        pytest.exit(f"the sim never came up: {e}", returncode=1)
+        reason = f"the sim never came up: {str(e).splitlines()[0]}"
+        write_diag(reason)
+        pytest.exit(reason, returncode=1)
     yield v
     if request.session.testsfailed:
         write_diag(f"{request.session.testsfailed} test(s) failed")
@@ -264,7 +282,7 @@ def converged(vm, vhost):
     """Before any test, wait (up to 10 min) for BGP to converge: CharlieUser1 can
     ping the vhost. Never fails by itself; test_2_routing reports it."""
     r = retry(lambda: vm.charlie(f"ping -c1 -W2 {vhost[1]}"), 60)
-    print(f"routing {'converged' if r.ok else 'did NOT converge in 10 min'}")
+    log(f"routing {'converged' if r.ok else 'did NOT converge in 10 min'}")
 
 
 @pytest.fixture(scope="session")
@@ -285,7 +303,7 @@ def ca_file(vm):
 @pytest.fixture(scope="session")
 def ext(vm, converged, request):
     """This machine as an external client of the sim (see External)."""
-    e = External(vm.tap, vm.out)
+    e = External(vm.tap)
     _state["ext"] = e
     request.addfinalizer(e.teardown)
     e.setup()

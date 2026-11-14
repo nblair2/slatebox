@@ -10,7 +10,7 @@ concurrency:
 
 env:
   PACKER_VERSION: 1.16.2
-  # packer init downloads the qemu plugin from GitHub; avoids API rate limits
+  # packer init downloads the qemu and ansible plugins from GitHub; avoids API rate limits
   PACKER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - run: packer init . && packer fmt -check -diff . && packer validate .
       - run: sudo apt-get update && sudo apt-get install -y shellcheck libxml2-utils
       - run: |
-          shellcheck scripts/provision.sh tests/smoke.sh files/usr/local/sbin/{topgen-scrape.sh,topgen-ca.sh,topgen-boot,frr-shim}
+          shellcheck tests/smoke.sh files/usr/local/sbin/{topgen-scrape.sh,topgen-ca.sh,topgen-boot,frr-shim}
           # legacy upstream style
           shellcheck -S error files/usr/local/sbin/topgen-{mkdns,vmail}.sh
           xmllint --noout files/etc/greybox/map.xml
@@ -51,6 +51,8 @@ jobs:
       - uses: hashicorp/setup-packer@v3
         with:
           version: ${{ env.PACKER_VERSION }}
+      # the runner image ships ansible-core (pipx); Packer's ansible provisioner runs it
+      - run: ansible-playbook --version
       - name: Pick the build directory (the disk with most free space)
         run: |
           df -h

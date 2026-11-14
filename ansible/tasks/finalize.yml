@@ -122,3 +122,14 @@
   ansible.builtin.command: fstrim -av
   changed_when: false
   failed_when: false
+
+- name: Remove Ansible's working directories
+  # Last, as every task (and loop item) before it uses them; the login user's
+  # directory goes last of all. They hold nothing once a task has finished.
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /root/.ansible
+    - /root/.ansible_async
+    - ~{{ ansible_user }}/.ansible

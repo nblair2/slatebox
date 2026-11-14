@@ -70,6 +70,14 @@
 
 # The rest of what the package's postinst does after its pip step, which
 # NO_PYTHON skipped.
+- name: Create the drop-in directory of core-daemon.service
+  ansible.builtin.file:
+    path: /etc/systemd/system/core-daemon.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Run core-daemon.service from the venv
   # The packaged unit has ExecStart=$DAEMON, which the postinst would sed into
   # the venv's path; this drop-in replaces that ExecStart instead.
@@ -79,7 +87,6 @@
     owner: root
     group: root
     mode: "0644"
-    directory_mode: "0755"
 
 - name: Link CORE's commands into /usr/bin
   ansible.builtin.file:

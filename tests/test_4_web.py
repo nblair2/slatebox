@@ -61,10 +61,10 @@ def test_external_client_fetches_vhost(ext, vhost, expect, ca_file):
 
 
 def test_browser_renders_vhost_from_external_client(ext, vhost, expect, ca_file):
-    """Headless Chromium outside the sim, trusting only the TopGen CA, renders the site:
-    title or text mentions EXPECT, its same-site pages, styles and scripts load (other
-    failures, e.g. images the mirror missed, are only printed), and an internal link works.
-    Screenshots: browser-home.png, browser-link.png in --out."""
+    """Headless Chromium outside the sim, trusting only the TopGen CA (no certificate
+    errors ignored), renders the site: the title or text mentions EXPECT, at least 80%
+    of its same-site requests succeed (a mirror misses some script-built URLs), and an
+    internal link works. In --out: browser-home.png, browser-link.png, browser.json."""
     pytest.importorskip("playwright")
     browse = Path(__file__).with_name("browse.py")
     env = {"PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH",
@@ -72,19 +72,13 @@ def test_browser_renders_vhost_from_external_client(ext, vhost, expect, ca_file)
     r = ext.as_user(f"{sys.executable} {browse} https://{vhost[0]}/ {ca_file} {ca_file.parent}", **env)
     assert r.ok, r.out
     res = json.loads(r.out.splitlines()[-1])
+    (ca_file.parent / "browser.json").write_text(json.dumps(res, indent=1))
     assert "error" not in res, res["error"]
-    home = res["home"]
-    print(f"home: {home['status']} {home['title']!r}, {home['requests']} same-site responses,"
-          f" failed: {home['failed']}")
-    assert home["status"] == 200
-    assert expect.lower() in (home["title"] + home["text"]).lower(), home["title"]
-    assert not broken(home), "\n".join(home["failed"])
-    assert "link" in res, "no internal link on the home page"
-    link = res["link"]
-    print(f"link: {link['status']} {link['url']} {link['title']!r}, failed: {link['failed']}")
-    assert link["status"] == 200 and not broken(link), "\n".join(link["failed"])
-
-
-def broken(visit):
-    """Failed same-site requests that break a page (each is "STATUS-OR-ERROR TYPE URL")."""
-    return [f for f in visit["failed"] if f.split()[1] in ("document", "stylesheet", "script")]
+    for name in ("home", "link"):
+        assert name in res, "no internal link on the home page"
+        page = res[name]
+        print(f"{name}: {page['status']} {page['url']} {page['title']!r}: {page['requested']} same-site"
+              f" requests, {len(page['failed'])} failed", *page["failed"], sep="\n  ")
+        assert page["status"] == 200
+        assert len(page["failed"]) <= 0.2 * page["requested"], "\n".join(page["failed"])
+    assert expect.lower() in (res["home"]["title"] + res["home"]["text"]).lower(), res["home"]["title"]

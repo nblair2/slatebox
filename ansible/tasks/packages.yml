@@ -59,6 +59,11 @@
 - name: List the host's systemd units
   ansible.builtin.service_facts:
 
+- name: Check that the unit list is complete
+  # the next task skips the units missing from it
+  ansible.builtin.assert:
+    that: "'nginx.service' in ansible_facts.services"
+
 - name: Disable the host's units of daemons that run inside CORE nodes
   # networkd-dispatcher would run once for each of the map's ~800 interfaces.
   # Units a package does not ship (any more) are skipped.

@@ -7,7 +7,7 @@
     group: root
     mode: "0755"
 
-- name: Install topgen's DNS delegations and mail configuration
+- name: Install topgen's DNS and mail configuration
   ansible.builtin.copy:
     src: "{{ files_dir }}/etc/topgen/{{ item }}"
     dest: /etc/topgen/{{ item }}
@@ -16,6 +16,7 @@
     mode: "0644"
   loop:
     - delegations.dns
+    - hosts.custom
     - vmail.cfg
 
 - name: Install topgen's commands into /usr/local/sbin
@@ -78,6 +79,7 @@
     dest: /etc/nginx/conf.d/topgen.conf
     state: link
     force: true
+    follow: false
 
 - name: Remove nginx's default site
   ansible.builtin.file:

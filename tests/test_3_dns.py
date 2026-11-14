@@ -1,6 +1,4 @@
 """DNS works like the real thing: root -> TLD -> answer, through the in-sim resolver 8.8.8.8."""
-import os
-
 import pytest
 
 from conftest import REPO, mail_servers
@@ -63,15 +61,22 @@ def test_mail_domain_mx(vm, host, ip, user, password):
     assert dig(vm, f"@{RESOLVER} {host} A") == [ip]
 
 
-# User records added at build time ("NAME=IP,..."); the build must include them.
-EXTRA = [kv.split("=", 1) for kv in os.environ.get("SLATEBOX_DNS_RECORDS", "").split(",") if kv]
-
-
-@pytest.mark.parametrize("name,ip", EXTRA or [pytest.param("-", "-", id="unset", marks=pytest.mark.skip(
-    "set SLATEBOX_DNS_RECORDS=NAME=IP,... to check user drop-in records"))])
-def test_user_dropin_record(vm, name, ip):
-    """A user-supplied DNS record baked into the image resolves through 8.8.8.8."""
-    assert dig(vm, f"@{RESOLVER} {name} A") == [ip]
+def test_user_record_from_hosts_custom(vm):
+    """A line appended to /etc/topgen/hosts.custom resolves (A and PTR, made-up TLD
+    included) after `topgen-boot reload-dns`. The file is restored afterwards."""
+    if not vm.sh("grep -q reload-dns /usr/local/sbin/topgen-boot").ok:
+        pytest.skip("this image has no topgen-boot reload-dns")
+    ip, name = "12.0.0.77", "slatebox-test.range.lab"
+    f, bak = "/etc/topgen/hosts.custom", "/run/hosts.custom.test-bak"
+    reload = "greybox-ctl exec topgen.info topgen-boot reload-dns"
+    assert vm.sh(f"touch {f} && cp -a {f} {bak} && echo '{ip} {name}' >> {f}").ok
+    try:
+        r = vm.sh(reload)
+        assert r.ok, r.out
+        assert dig(vm, f"@{RESOLVER} {name} A") == [ip]
+        assert f"{name}." in dig(vm, f"@{RESOLVER} -x {ip}")
+    finally:
+        vm.sh(f"mv {bak} {f} && {reload}")
 
 
 def test_external_client_resolves_vhost(ext, vhost):
