@@ -31,7 +31,7 @@ Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 | `cpus`, `memory` | `4`, `8192` | vCPUs and RAM in MiB |
 | `disk_size` | `40G` | Virtual disk size |
 | `output_dir` | `build/image` | Image output directory |
-| `admin_password` | `slatebox` | Console/SSH password |
+| `admin_password` | `slatebox` | root's console/SSH password |
 | `ext_iface` | `ens4` | NIC connected to the simulated network |
 | `scrape_sites` | `["https://www.cmu.edu"]` | Websites to mirror |
 | `scrape_depth` | `1` | Crawl depth |
@@ -41,8 +41,8 @@ Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 ## Services
 
 The first NIC gets management access by DHCP; `ext_iface` connects external clients to the
-simulation. Its name must match the target VM's NIC. Log in as `slatebox` with `admin_password`;
-the account has sudo. Keep the simulated network isolated from production networks.
+simulation. Its name must match the target VM's NIC. Log in as `root` with `admin_password`.
+Keep the simulated network isolated from production networks.
 
 ### Network Map
 
@@ -53,7 +53,7 @@ Application services run inside the `topgen.info` node, not as host services.
 ```sh
 greybox-ctl status
 greybox-ctl exec CharlieUser1 traceroute -n www.cmu.edu
-sudo systemctl restart greybox
+systemctl restart greybox
 ```
 
 ### DHCP
@@ -66,7 +66,7 @@ The external link joins `iap1-rtr.disa.mil` on `12.0.0.0/24`. Clients receive
 BIND9 provides simulated root, TLD and caching servers; clients and the VM resolve through
 `8.8.8.8`. To add A/PTR records, append `IP name` lines to
 [/etc/topgen/hosts.custom](files/etc/topgen/hosts.custom), then run
-`sudo greybox-ctl exec topgen.info topgen-boot reload-dns`. Custom records never replace built-in ones.
+`greybox-ctl exec topgen.info topgen-boot reload-dns`. Custom records never replace built-in ones.
 
 ### Web
 

@@ -40,7 +40,7 @@ def pytest_addoption(parser):
     add("--keep", action="store_true", help="leave the booted VM running (for --attach later)")
     add("--ssh-port", type=int, default=2222, help="host port forwarded to the VM's ssh")
     add("--tap", default="tap0", help="tap device connected to the VM's ens4")
-    add("--password", default="slatebox", help="password of the slatebox user")
+    add("--password", default="slatebox", help="root's password in the VM (admin_password)")
     add("--vhost", default="www.cmu.edu", help="mirrored site to test")
     add("--expect", default="Carnegie Mellon", help="text on the vhost's home page")
     add("--out", default="test-output", help="directory for logs, diagnostics and screenshots")
@@ -80,14 +80,14 @@ class VM:
         self.qemu = None
 
     def sh(self, cmd, timeout=120):
-        """Run cmd as root in the VM (bash, via ssh + sudo)."""
+        """Run cmd as root in the VM (bash, via ssh)."""
         ssh = (
             "sshpass -e ssh -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
-            f"-o ConnectTimeout=10 -p {self.port} slatebox@127.0.0.1"
+            f"-o ConnectTimeout=10 -p {self.port} root@127.0.0.1"
         )
-        remote = "sudo -S -p '' bash -c " + shlex.quote(cmd)
+        remote = "bash -c " + shlex.quote(cmd)
         env = dict(os.environ, SSHPASS=self.password)
-        return sh(f"{ssh} {shlex.quote(remote)}", timeout, input=self.password + "\n", env=env)
+        return sh(f"{ssh} {shlex.quote(remote)}", timeout, env=env)
 
     def node(self, name, cmd, timeout=120):
         """Run cmd (sh) in the CORE node `name`."""

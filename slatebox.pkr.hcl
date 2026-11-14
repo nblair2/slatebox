@@ -29,29 +29,30 @@ source "qemu" "slatebox" {
   # full boot and cloud-init console, kept for CI
   qemuargs = [["-serial", "file:serial-build.log"]]
 
-  # cloud-init NoCloud seed: creates the user Packer logs in as
+  # cloud-init NoCloud seed: root logs in with admin_password, over SSH too.
+  # The image keeps these settings; users: [] skips the default "ubuntu" user.
   cd_label = "cidata"
   cd_content = {
     "meta-data" = "instance-id: slatebox-build\nlocal-hostname: slatebox\n"
     "user-data" = <<-EOF
       #cloud-config
-      users:
-        - name: slatebox
-          groups: [sudo]
-          shell: /bin/bash
-          sudo: "ALL=(ALL) NOPASSWD:ALL"
-          lock_passwd: false
-          plain_text_passwd: "${var.admin_password}"
+      users: []
+      chpasswd:
+        expire: false
+        users:
+          - {name: root, password: "${var.admin_password}", type: text}
       ssh_pwauth: true
+      write_files:
+        - path: /etc/ssh/sshd_config.d/10-slatebox.conf
+          content: "PermitRootLogin yes\n"
     EOF
   }
 
-  communicator = "ssh"
-  ssh_username = "slatebox"
-  ssh_password = var.admin_password
-  ssh_timeout  = "15m"
-  # the playbook removes passwordless sudo
-  shutdown_command = "echo '${var.admin_password}' | sudo -S shutdown -P now"
+  communicator     = "ssh"
+  ssh_username     = "root"
+  ssh_password     = var.admin_password
+  ssh_timeout      = "15m"
+  shutdown_command = "shutdown -P now"
 }
 
 build {
@@ -60,7 +61,7 @@ build {
   provisioner "ansible" {
     playbook_file = "${path.root}/ansible/playbook.yml"
     use_proxy     = true
-    user          = "slatebox"
+    user          = "root"
     use_sftp      = true
     sftp_command  = "/usr/lib/openssh/sftp-server -e"
     ansible_env_vars = [
@@ -68,12 +69,11 @@ build {
     ]
     extra_arguments = [
       "--extra-vars", jsonencode({
-        ext_iface               = var.ext_iface
-        scrape_sites            = var.scrape_sites
-        scrape_depth            = var.scrape_depth
-        scrape_timeout          = var.scrape_timeout
-        scrape_jobs             = var.scrape_jobs
-        ansible_become_password = var.admin_password
+        ext_iface      = var.ext_iface
+        scrape_sites   = var.scrape_sites
+        scrape_depth   = var.scrape_depth
+        scrape_timeout = var.scrape_timeout
+        scrape_jobs    = var.scrape_jobs
       }),
     ]
   }

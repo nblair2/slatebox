@@ -1,12 +1,11 @@
 ---
 # Turns the Ubuntu 26.04 cloud image into slatebox. Packer runs this playbook
-# over its SSH connection to the build VM (slatebox.pkr.hcl) and passes
+# as root over its SSH connection to the build VM (slatebox.pkr.hcl) and passes
 # ext_iface, scrape_sites, scrape_depth, scrape_timeout and scrape_jobs as
 # extra vars.
 # The task files run in this order; cheap failures come before the long scrape.
 - name: Provision slatebox
   hosts: all
-  become: true
   gather_facts: false
   environment:
     PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

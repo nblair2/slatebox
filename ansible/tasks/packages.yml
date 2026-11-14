@@ -67,7 +67,8 @@
 
 - name: Disable the host's units of daemons that run inside CORE nodes
   # networkd-dispatcher would run once for each of the map's ~800 interfaces.
-  # Units a package does not ship (any more) are skipped.
+  # Units a package does not ship (any more) are skipped. tests/test_1_boot.py
+  # (HOST_UNITS) checks the same list.
   ansible.builtin.systemd_service:
     name: "{{ item }}.service"
     enabled: false

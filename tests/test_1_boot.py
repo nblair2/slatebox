@@ -10,6 +10,33 @@ def test_service_active(vm, unit):
     assert r.out == "active", vm.sh(f"systemctl --no-pager status {unit}").out
 
 
+# The units ansible/tasks/packages.yml disables; their daemons run inside CORE nodes.
+HOST_UNITS = [
+    "frr",
+    "nginx",
+    "named",
+    "postfix",
+    "dovecot",
+    "isc-dhcp-server",
+    "isc-dhcp-server6",
+    "keepalived",
+    "networkd-dispatcher",
+]
+
+
+def test_host_daemons_inactive(vm):
+    """The simulated services' daemons do not run as host units."""
+    r = vm.sh("systemctl is-active " + " ".join(HOST_UNITS))
+    states = r.out.splitlines()
+    assert len(states) == len(HOST_UNITS) and "active" not in states, r.out
+
+
+def test_resolv_conf(vm):
+    """/etc/resolv.conf is a regular file that names only the simulated 8.8.8.8."""
+    r = vm.sh("test -f /etc/resolv.conf && ! test -L /etc/resolv.conf && cat /etc/resolv.conf")
+    assert r.ok and r.out == "nameserver 8.8.8.8", vm.sh("ls -l /etc/resolv.conf; cat /etc/resolv.conf").out
+
+
 def test_sim_in_runtime(vm):
     """greybox-ctl reports the CORE session in RUNTIME."""
     r = vm.sh("greybox-ctl status")

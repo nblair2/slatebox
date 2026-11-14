@@ -1,8 +1,8 @@
 # Custom DNS records for the simulated internet, one "IP name..." per line as
 # in /etc/hosts. Append lines, then restart the simulation or run
-#   sudo greybox-ctl exec topgen.info topgen-boot reload-dns
+#   greybox-ctl exec topgen.info topgen-boot reload-dns
 # e.g.
-#   echo "12.0.0.50 intranet.example.com" | sudo tee -a /etc/topgen/hosts.custom
+#   echo "12.0.0.50 intranet.example.com" >> /etc/topgen/hosts.custom
 #
 # - Any top level domain works, made-up ones included; every address also gets
 #   a PTR record. A and PTR records only.

@@ -44,69 +44,21 @@
     group: root
     mode: "0644"
 
-# Logins
-- name: Make sudo ask for the password
-  # The remaining tasks still become root: Packer passes the password as
-  # ansible_become_password.
-  ansible.builtin.file:
-    path: /etc/sudoers.d/90-cloud-init-users
-    state: absent
-
-- name: Allow SSH password logins
-  # 55- sorts before the cloud image's 60-cloudimg-settings.conf ("no"); sshd
-  # keeps the first value. A user's cloud-init seed (50-cloud-init.conf) still wins.
-  ansible.builtin.copy:
-    src: "{{ files_dir }}/etc/ssh/sshd_config.d/55-slatebox.conf"
-    dest: /etc/ssh/sshd_config.d/55-slatebox.conf
-    owner: root
-    group: root
-    mode: "0644"
-
-- name: Find the build VM's SSH host keys
-  ansible.builtin.find:
-    paths: /etc/ssh
-    patterns: ssh_host_*
-  register: ssh_host_keys
-
-- name: Remove the SSH host keys (each VM generates its own at first boot)
-  # Packer's SSH connection, which Ansible's commands go through, stays open.
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    state: absent
-  loop: "{{ ssh_host_keys.files }}"
-  loop_control:
-    label: "{{ item.path }}"
-
-# Cleanup
+# Image size
 - name: Remove downloaded packages (apt-get clean)
   ansible.builtin.apt:
     clean: true
-
-- name: Remove the apt package lists
-  ansible.builtin.file:
-    path: /var/lib/apt/lists
-    state: absent
-
-- name: Recreate the empty apt package lists directory
-  ansible.builtin.file:
-    path: /var/lib/apt/lists
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
 
 - name: Remove the scratch directory
   ansible.builtin.file:
     path: "{{ build_tmp.path }}"
     state: absent
 
-- name: Reset cloud-init, its logs and the machine ID for the next boot
-  ansible.builtin.command: cloud-init clean --logs --machine-id
-  changed_when: true
-
 # Last: the host and all CORE nodes resolve via 8.8.8.8 inside the simulation
-# (greybox README). A static file replaces the systemd-resolved stub link;
-# systemd-resolved keeps running.
+# (greybox README). A regular file replaces the systemd-resolved stub link;
+# systemd-resolved keeps running. The file stays: tmpfiles (L!) and
+# systemd-resolved's package scripts link only a missing /etc/resolv.conf,
+# and systemd-resolved itself writes only under /run (test_1_boot checks).
 - name: Remove the systemd-resolved stub link /etc/resolv.conf
   ansible.builtin.file:
     path: /etc/resolv.conf
@@ -143,14 +95,3 @@
   ansible.builtin.command: fstrim -av
   changed_when: false
   failed_when: false
-
-- name: Remove Ansible's working directories
-  # Last, as every task (and loop item) before it uses them; the login user's
-  # directory goes last of all. They hold nothing once a task has finished.
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /root/.ansible
-    - /root/.ansible_async
-    - ~{{ ansible_user }}/.ansible

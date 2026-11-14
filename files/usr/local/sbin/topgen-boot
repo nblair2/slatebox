@@ -6,7 +6,7 @@
 #   start, stop, restart, status   the topgen daemons
 #   dns          regenerate the bind9 configuration (start does this too)
 #   reload-dns   regenerate it and make the running named use it:
-#                  sudo greybox-ctl exec topgen.info topgen-boot reload-dns
+#                  greybox-ctl exec topgen.info topgen-boot reload-dns
 #
 # DNS data comes from the scraped and mail hosts, the greybox backbone, the
 # delegations in /etc/topgen/delegations.dns, and user records appended to

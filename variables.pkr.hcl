@@ -35,7 +35,7 @@ variable "output_dir" {
 variable "admin_password" {
   type        = string
   default     = "slatebox"
-  description = "password of the 'slatebox' sudo user"
+  description = "root's password (console and SSH)"
 }
 
 variable "ext_iface" {

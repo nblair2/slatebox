@@ -3,3 +3,11 @@ Name=en* eth*
 
 [Network]
 DHCP=yes
+
+# VMs made from one image share its machine ID, from which systemd-networkd
+# derives the DHCP client ID by default; the MAC address differs per VM.
+[DHCPv4]
+ClientIdentifier=mac
+
+[DHCPv6]
+DUIDType=link-layer
