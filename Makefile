@@ -5,7 +5,7 @@ PREK ?= prek
 UV ?= uv
 PYTHON ?= python3
 VENV ?= .venv
-IMAGE ?= build/image/slatebox.qcow2
+IMAGE ?= build/image/slatebox.qc2
 PACKER_ARGS ?=
 TEST_ARGS ?=
 

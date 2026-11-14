@@ -29,7 +29,7 @@ variable "disk_size" {
 variable "output_dir" {
   type        = string
   default     = "build/image"
-  description = "receives slatebox.qcow2"
+  description = "receives slatebox.qc2"
 }
 
 variable "admin_password" {

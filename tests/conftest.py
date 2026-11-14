@@ -1,6 +1,6 @@
 """Boot (or attach to) a slatebox VM once per session and share helpers.
 
-    pytest tests --image build/image/slatebox.qcow2    boot a throwaway snapshot
+    pytest tests --image build/image/slatebox.qc2    boot a throwaway snapshot
     pytest tests --image IMG --keep                    ... and leave it running
     pytest tests --attach                              reuse a VM left by --keep
 
@@ -262,7 +262,7 @@ def vm(request):
     try:
         if not cfg.getoption("attach"):
             image = cfg.getoption("image")
-            assert image, "give --image IMAGE.qcow2 (or --attach)"
+            assert image, "give --image IMAGE.qc2 (or --attach)"
             if not cfg.getoption("keep"):
                 request.addfinalizer(v.stop)
             v.boot(image)
