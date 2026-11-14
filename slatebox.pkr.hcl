@@ -57,16 +57,10 @@ source "qemu" "slatebox" {
 build {
   sources = ["source.qemu.slatebox"]
 
-  # Runs ansible-playbook on the build host. use_proxy: Ansible connects to a
-  # local SSH server of Packer's, which runs every command and file transfer
-  # over Packer's own SSH connection to the VM. That needs no sshpass, and it
-  # keeps working after the playbook deletes the VM's SSH host keys (a new
-  # connection to the VM's sshd would not).
   provisioner "ansible" {
     playbook_file = "${path.root}/ansible/playbook.yml"
     use_proxy     = true
     user          = "slatebox"
-    # file transfers use the VM's sftp-server (the plugin's default path is not Ubuntu's)
     use_sftp     = true
     sftp_command = "/usr/lib/openssh/sftp-server -e"
     ansible_env_vars = [
@@ -78,7 +72,6 @@ build {
         scrape_sites   = var.scrape_sites
         scrape_depth   = var.scrape_depth
         scrape_timeout = var.scrape_timeout
-        # sudo needs it once the playbook removes passwordless sudo
         ansible_become_password = var.admin_password
       }),
     ]

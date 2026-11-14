@@ -1,189 +1,118 @@
 # slatebox
 
-A single-host Internet simulator packaged as one qcow2 VM image, built with Packer on Ubuntu 26.04.
+> "Have you ever had a dream, Neo, that you were so sure was real? … How would you know the difference between the dream world and the real world?”
+> - Morpheus, The Matrix
 
-Inside the image, [CORE](https://github.com/coreemu/core) 9.2.1 runs the greybox backbone map:
-69 FRR routers speaking BGP, plus client hosts. One node, `topgen.info`, runs the topgen services:
-web (nginx serving sites mirrored at build time), DNS (bind9 root, TLD and caching servers,
-reachable as 8.8.8.8) and mail (postfix and dovecot). One RJ45 node connects the map to a NIC of
-the VM, so outside machines can join the simulated Internet.
+**`slatebox` is an internet simulator in a VM**
 
-## Provenance
+*`slatebox` is a "clean slate" implementation of CMU-SEI's excellent [`greybox`](https://github.com/cmu-sei/greybox) tool*
 
-greybox and topgen are CMU-SEI projects, Copyright 2016 Carnegie Mellon University, BSD-licensed
-with a US Government Purpose Rights notice (`LICENSE.greybox`, `LICENSE.topgen`). The files derived
-from them were taken from these upstream commits and adapted for Ubuntu, CORE 9 and FRR 10:
+![slatebox](.media/slatebox.png)
 
-- [topgen](https://github.com/cmu-sei/topgen) `e0ab5441a860a98fce4a49c249fe9b61a0e56747`:
-  `topgen-mkdns.sh`, `topgen-vmail.sh`, `vmail.cfg`, `delegations.dns`, and the landing page in
-  `topgen-scrape.sh`.
-- [greybox](https://github.com/cmu-sei/greybox) `e89c3754491db97599db073bbeb18fc7b20a7240`:
-  `backbone.hosts`, `keepalived.conf`, `topgen-boot` (the map's `TopGenBoot.sh`) and the map.
-  `files/etc/greybox/map.xml` was converted once to CORE XML from `share/maps/backbone_ext.imn`
-  and is now maintained by hand.
+A qcow2 image built on Ubuntu 26.04. [CORE](https://github.com/coreemu/core) runs a 69-router
+FRR/BGP backbone; TopGen supplies DNS, web and mail.
 
-`greybox-ctl`, `frr-shim`, the CORE `UserDefined` service, `topgen-ca.sh` and the rest of
-`topgen-scrape.sh` are slatebox's own. Every static file that goes into the image lives under
-`files/`, at its installed path; the two files that depend on `ext_iface` are templates in
-`ansible/templates/`.
+## Build
 
-## Repository layout
-
-| Path | Contents |
-|---|---|
-| `slatebox.pkr.hcl`, `variables.pkr.hcl` | Packer build |
-| `ansible/` | Provisioning playbook, run by Packer against the build VM |
-| `files/` | Static files the playbook installs, each at its installed path |
-| `tests/` | pytest suite that boots the image and checks it end to end (`test_1_boot` … `test_5_mail`) |
-| `.pre-commit-config.yaml`, `ruff.toml` | Lint hooks, run with prek |
-| `.github/dependabot.yml` | Weekly updates of actions, test requirements and hook revisions |
-| `.github/workflows/build.yml` | CI |
-
-## How the image is provisioned
-
-Packer boots the Ubuntu cloud image and runs `ansible/playbook.yml` with its `ansible` provisioner:
-`ansible-playbook` runs on the build host and reaches the VM through Packer's SSH connection. The
-playbook runs these task files in order, as root; their task names read as the build log:
-
-| Task file | Does |
-|---|---|
-| `packages.yml` | waits for cloud-init, preseeds postfix, upgrades, installs the service packages, disables their host units |
-| `core.yml` | installs CORE 9.2.1 with a uv-managed Python 3.12 venv in `/opt/core` |
-| `goscrape.yml` | installs the goscrape binary |
-| `greybox.yml` | installs the map, `greybox-ctl`, the FRR shim and `greybox.service` |
-| `topgen.yml` | installs the topgen scripts and directories, nginx and AppArmor glue |
-| `content.yml` | creates the CA, mirrors the sites, generates mail and DNS configuration, the CRL |
-| `verify.yml` | checks the generated nginx, named, postfix, dovecot and certificate files |
-| `finalize.yml` | networking, logins, cleanup, `resolv.conf` |
-
-The Packer variables `ext_iface`, `scrape_sites`, `scrape_depth` and `scrape_timeout` reach the
-playbook as extra vars. `ansible/ansible.cfg` prints task results as YAML, so a failure can be
-read from the CI log.
-
-## How CI builds it
-
-On every push that changes more than `*.md` and `LICENSE.*` files (and on manual dispatch),
-`.github/workflows/build.yml` runs two jobs:
-
-1. **lint**: `packer validate`, then the prek hooks (see [Linting](#linting)).
-2. **build**: enables KVM on the runner, runs `packer build`, then the pytest suite in `tests/` on the image.
-   The suite boots the image with a second NIC on a tap device, waits for the map to reach RUNTIME and
-   for routing to converge, then checks, file by file: boot (services, RUNTIME, topgen daemons), routing
-   (BGP sessions, ping/traceroute, a DHCP lease from outside), DNS (root → TLD → resolver, PTR, MX, router
-   names, user records), web (HTTPS with the TopGen CA, CRL, landing page, and headless Chromium rendering
-   the site from outside the sim) and mail (IMAPS, SMTP submission, cross-domain delivery). Logs,
-   diagnostics, screenshots and JUnit XML are uploaded as the `test-output` artifact; on success the image
-   is uploaded as `slatebox-qcow2` (kept 3 days); on failure the Packer log and serial console logs are
-   also uploaded.
-
-Most of the build is the site scrape. With the default `scrape_depth` of 1, www.cmu.edu takes a few
-minutes and yields about 120 MB. Deeper crawls of a large site take much longer; each site is bounded
-by `scrape_timeout` (default `60m`), and a site that hits the limit yields a partial mirror.
-
-## Building locally
-
-You need Packer 1.10 or later, Ansible (`ansible-core` 2.20 or later, which supports the image's Python
-3.14; e.g. `pipx install ansible-core`), `qemu-system-x86`, `qemu-utils`, `xorriso` and a working `/dev/kvm`.
+Requires Linux/KVM, GNU Make, Packer 1.10+, `ansible-core` 2.20+, `qemu-system-x86`,
+`qemu-utils` and `xorriso`. Packer boots the cloud image; [Ansible](ansible/playbook.yml)
+installs services, generates certificates and mirrors websites.
 
 ```sh
-packer init .
-packer build .                                  # -> build/image/slatebox.qcow2
-packer build -var 'scrape_sites=["https://example.com"]' .
+make build                                      # build/image/slatebox.qcow2
+make build PACKER_ARGS='-var ext_iface=enp2s0'    # override a Packer variable
 ```
 
-The tests need sudo, `sshpass`, `busybox`, `dig`, `certutil` (`libnss3-tools`) and Python 3:
+Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 
-```sh
-python3 -m venv .venv && .venv/bin/pip install -r tests/requirements.txt
-.venv/bin/playwright install --with-deps --only-shell chromium
-.venv/bin/python -m pytest tests --image build/image/slatebox.qcow2
-```
-
-Add `--keep` to leave the VM running and then iterate with `--attach` (no reboot), e.g.
-`.venv/bin/python -m pytest tests --attach -k dns`. Results, `diag.txt` and screenshots go to
-`test-output/`; `pytest tests --help` lists the options (vhost, expected text, ports, deadline).
-
-## Linting
-
-The hooks in `.pre-commit-config.yaml` run with [prek](https://github.com/j178/prek) (it also reads
-pre-commit configurations): hygiene fixers, shellcheck, ruff, ansible-lint, actionlint, codespell,
-`packer fmt` and checks of the greybox map. The `packer fmt` hook needs `packer` on `PATH`.
-
-```sh
-uv tool install prek        # or: pipx install prek, pip install prek
-prek install                # run the hooks on every commit
-prek run --all-files        # what CI runs
-```
-
-## Variables
-
-| Variable | Default | Meaning |
+| Variable | Default | Purpose |
 |---|---|---|
-| `ubuntu_image_url`, `ubuntu_image_checksum` | resolute cloud image, `file:` SHA256SUMS | Base image |
-| `cpus`, `memory` | `4`, `8192` | Build VM size (MiB) |
-| `disk_size` | `40G` | Virtual disk size; the qcow2 is sparse and compressed |
-| `output_dir` | `build/image` | Receives `slatebox.qcow2` |
-| `admin_password` | `slatebox` | Password of the `slatebox` login user |
-| `ext_iface` | `ens4` | NIC given to the map's RJ45 node |
-| `scrape_sites` | `["https://www.cmu.edu"]` | Sites mirrored into the image (`http://` or `https://`) |
-| `scrape_depth` | `1` | Link depth per site |
-| `scrape_timeout` | `60m` | Time limit per site; a partial mirror is kept |
+| `ubuntu_image_url`, `ubuntu_image_checksum` | Ubuntu 26.04 resolute, upstream SHA256SUMS | Base image |
+| `cpus`, `memory` | `4`, `8192` | vCPUs and RAM in MiB |
+| `disk_size` | `40G` | Virtual disk size |
+| `output_dir` | `build/image` | Image output directory |
+| `admin_password` | `slatebox` | Console/SSH password |
+| `ext_iface` | `ens4` | NIC connected to the simulated network |
+| `scrape_sites` | `["https://www.cmu.edu"]` | Websites to mirror |
+| `scrape_depth` | `1` | Crawl depth |
+| `scrape_timeout` | `60m` | Limit per site; partial mirrors are kept |
 
-CORE, uv, Python and goscrape versions (and the download checksums) are pinned in
-`ansible/playbook.yml`.
+## Services
 
-## External interface
+The first NIC gets management access by DHCP; `ext_iface` connects external clients to the
+simulation. Its name must match the target VM's NIC. Log in as `slatebox` with `admin_password`;
+the account has sudo. Keep the simulated network isolated from production networks.
 
-The RJ45 node is attached to `iap1-rtr.disa.mil`, which owns `12.0.0.0/24`:
+### Network Map
 
-- router address `12.0.0.41`;
-- DHCP on that router hands out `12.0.0.100` to `12.0.0.250`, with `12.0.0.41` as gateway and
-  `8.8.8.8` as DNS server.
-
-Connect machines to the VM's `ext_iface` NIC and they get an address and reach the simulated
-Internet. The host itself does not configure that NIC. `ext_iface` must match the name the target
-hypervisor gives the VM's second NIC: `ens4` with QEMU's default `pc` machine type, but e.g.
-`enp2s0` on `q35`. If the named NIC is absent at boot, the simulation still starts, with a dummy
-interface of that name in its place and no external link.
-
-To use a different NIC on a built image, change the name in both
-`/etc/default/greybox` (`GREYBOX_EXT_IFACE=`) and `/etc/systemd/network/10-greybox-ext.network`
-(`Name=`), then reboot.
-
-## Using the image
-
-Log in as `slatebox` with `admin_password`, on the console or with SSH (password logins are
-enabled). The user has sudo. The first NIC gets its address by DHCP. cloud-init is still
-installed, so a NoCloud seed (`cidata`) can add SSH keys or users.
-
-At boot, `greybox.service` starts the map from `/etc/greybox/map.xml`; with 69 routers this takes
-a few minutes, and BGP needs a few more to converge.
+[The map](files/etc/greybox/map.xml) contains 69 FRR/BGP routers and client hosts.
+`greybox.service` starts it through CORE at boot; allow a few minutes for routing to converge.
+Application services run inside the `topgen.info` node, not as host services.
 
 ```sh
 greybox-ctl status
 greybox-ctl exec CharlieUser1 traceroute -n www.cmu.edu
-greybox-ctl exec CharlieUser1 curl --cacert /var/lib/topgen/etc/topgen_ca.cer https://www.cmu.edu/
 sudo systemctl restart greybox
 ```
 
-The host's `/etc/resolv.conf` is `nameserver 8.8.8.8`, the simulated resolver, as greybox
-recommends; CORE nodes share it. The host's own `frr`, `nginx`, `named`, `postfix`, `dovecot`,
-`keepalived` and `isc-dhcp-server` units are disabled, because these daemons run inside nodes.
-`https://topgen.info/` lists the mirrored sites.
+### DHCP
 
-## CA and CRL
+The external link joins `iap1-rtr.disa.mil` on `12.0.0.0/24`. Clients receive
+`12.0.0.100`–`12.0.0.250`, gateway `12.0.0.41` and DNS `8.8.8.8`.
 
-The build generates a root CA (`/C=US/ST=PA/L=Pgh/O=CMU/OU=CERT/CN=topgen_ca`, 20 years) in
-`/var/lib/topgen/etc/` (`topgen_ca.cer`, `topgen_ca.key`, database in `ca/`). Every vhost and mail
-server certificate is issued by it, with a random serial, `extendedKeyUsage=serverAuth` and a CRL
-distribution point of `http://topgen.info/topgen_ca.crl`. Clients in the simulation must trust
-`topgen_ca.cer`; it is also served at `https://topgen.info/topgen_ca.cer`.
+### DNS
 
-The CRL is written in DER to `/var/lib/topgen/vhosts/topgen.info/topgen_ca.crl`. Manage
-certificates with:
+BIND9 provides simulated root, TLD and caching servers; clients and the VM resolve through
+`8.8.8.8`. Add custom records in [hosts.custom](files/etc/topgen/hosts.custom) before building.
 
-```sh
-sudo topgen-ca.sh issue KEY CERT NAME...
-sudo topgen-ca.sh revoke CERT
-sudo topgen-ca.sh gencrl
-```
+### Web
+
+nginx serves the build-time website mirrors over HTTPS. `https://topgen.info/` lists them.
+Choose sites and crawl limits with the `scrape_*` build variables.
+
+### Mail
+
+Postfix and Dovecot provide SMTP submission (587, STARTTLS) and IMAPS (993).
+Domains and accounts come from [vmail.cfg](files/etc/topgen/vmail.cfg).
+
+### Certificates
+
+Clients must trust the generated CA at `/var/lib/topgen/etc/topgen_ca.cer`.
+`topgen-ca.sh` issues and revokes certificates and regenerates the CRL, served at
+`http://topgen.info/topgen_ca.crl`.
+
+## Development
+
+The [Makefile](Makefile) wraps the build, test and lint commands:
+
+| Command | Purpose |
+|---|---|
+| `make install-dev` | Install dev tools, test environment, Git hooks and Packer plugins |
+| `make init` | Install Packer plugins |
+| `make build` | Initialize plugins and build the image |
+| `make test` | Boot and test `IMAGE` (default: `build/image/slatebox.qcow2`) |
+| `make lint` | Run all [prek checks](prek.toml), including Packer validation |
+
+Development requires uv, the build tools above, Python 3.12+, sudo, `sshpass`, `busybox`, `dig`,
+`certutil` and `traceroute`. Run `make install-dev` once, then `make lint` or `make test`.
+Use `TEST_ARGS='--keep'` to leave the VM running
+or `TEST_ARGS='--attach -k dns'` to reuse it. Results and diagnostics go to `test-output/`.
+
+[CI](.github/workflows/build.yml) validates, builds and tests the image; successful qcow2
+artifacts are kept for three days. Dependabot updates actions and test dependencies;
+hook revisions use `prek update`. Ruff targets CORE's and CI's Python 3.12.
+
+[Releasaurus](.github/workflows/release.yml) opens a release PR on the default branch; merge it
+to publish a tag and release notes. Versions are `vYYYY.MM.DD.MICRO`, with a counter starting
+at 1 each UTC day. Enable **Allow GitHub Actions to create and approve pull requests** in the
+repository's Actions settings. Images remain CI artifacts, not release attachments.
+
+## License
+
+Original code and modifications are [GPL-3.0-or-later](LICENSE). Derived material comes from
+CMU-SEI's [greybox](https://github.com/cmu-sei/greybox/tree/e89c3754491db97599db073bbeb18fc7b20a7240)
+and [topgen](https://github.com/cmu-sei/topgen/tree/e0ab5441a860a98fce4a49c249fe9b61a0e56747),
+Copyright 2016 Carnegie Mellon University. Their [greybox](LICENSE.greybox) and
+[topgen](LICENSE.topgen) licenses and Government Purpose Rights notices are preserved in
+`/usr/local/share/doc/slatebox/` alongside this document. Bundled software
+and content retain their own licenses; redistribution must include required notices and source.

@@ -1,0 +1,6 @@
+[defaults.versioning]
+version_type = "%Y.%m.%d.%i"
+
+[[package]]
+name = "slatebox"
+path = "."

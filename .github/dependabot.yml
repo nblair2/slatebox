@@ -19,12 +19,3 @@ updates:
     groups:
       pip:
         patterns: ["*"]
-
-  # hook revs in .pre-commit-config.yaml
-  - package-ecosystem: pre-commit
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      pre-commit:
-        patterns: ["*"]
