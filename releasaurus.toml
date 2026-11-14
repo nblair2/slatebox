@@ -1,5 +1,5 @@
 [defaults.versioning]
-version_type = "%Y.%m.%d"
+version_type = "%Y.%m.%d.%i"
 
 [[package]]
 name = "slatebox"

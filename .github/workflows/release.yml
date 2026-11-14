@@ -22,10 +22,10 @@ jobs:
       RELEASAURUS_REPO: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - name: Publish merged release
-        uses: robgonnella/releasaurus/action@v1.3.0
+        uses: robgonnella/releasaurus/action@v1.4.0-rc.2
         with:
           command: release
       - name: Prepare the next release PR
-        uses: robgonnella/releasaurus/action@v1.3.0
+        uses: robgonnella/releasaurus/action@v1.4.0-rc.2
         with:
           command: release-pr
