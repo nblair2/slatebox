@@ -69,7 +69,7 @@ variable "scrape_depth" {
 variable "scrape_timeout" {
   type        = string
   default     = "60m"
-  description = "time limit per site (coreutils timeout); a partial mirror is kept; sites are scraped side by side"
+  description = "time limit for the whole scrape (coreutils timeout); sites still running keep a partial mirror"
 }
 
 variable "scrape_jobs" {

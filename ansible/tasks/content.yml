@@ -6,15 +6,14 @@
 - name: Mirror the web sites and print the outcome
   block:
     - name: Mirror the web sites into topgen's vhosts {{ scrape_sites }}
-      # Runs in the background and is polled every minute, so the scrape
-      # (about an hour per large site) does not depend on one long-lived
-      # command; the async limit is only an upper bound, scrape_timeout is
-      # the real one.
+      # Runs in the background and is polled every minute, so a long scrape
+      # does not depend on one long-lived command; the async limit is only an
+      # upper bound, scrape_timeout is the real one.
       ansible.builtin.command:
         argv: "{{ ['topgen-scrape.sh', scrape_depth | string, scrape_timeout] + scrape_sites }}"
       environment:
         TOPGEN_SCRAPE_JOBS: "{{ scrape_jobs }}"
-      async: 86400
+      async: 604800
       poll: 60
       register: scrape
       changed_when: true

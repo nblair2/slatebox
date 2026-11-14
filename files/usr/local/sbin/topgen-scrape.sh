@@ -6,10 +6,11 @@
 #
 # usage: topgen-scrape.sh DEPTH TIMEOUT URL...
 #   DEPTH    goscrape link depth (1 = the start page and the pages it links to)
-#   TIMEOUT  limit for each site, as for timeout(1): a number with an optional
-#            s, m, h or d suffix, e.g. 60m. Sites are scraped side by side, so
-#            this is also about the time the whole scrape takes. A site that
-#            hits it keeps what was mirrored so far.
+#   TIMEOUT  limit for the whole scrape, as for timeout(1): a number with an
+#            optional s, m, h or d suffix, e.g. 60m. All sites share it; a site
+#            still running at the limit keeps what was mirrored so far.
+#   A site whose start page fails is skipped with a warning; the scrape fails
+#   only if every site does.
 # env: TOPGEN_VARLIB (/var/lib/topgen), TOPGEN_SCRAPE_LOG (/var/log/topgen-scrape.log),
 #      TOPGEN_SCRAPE_JOBS (8): goscrape processes at once, over all sites
 #
@@ -125,13 +126,24 @@ for url; do
 done
 wait
 
-pages=()
+pages=() mirrored=0 failed_sites=()
 while read -r name url; do
   rc=$(cat "$work/$name.rc")
   case $rc in
-    0) ;;
-    124) echo "scrape: $url stopped after $limit, keeping the partial mirror"; continue ;;
-    *) tail -n 50 "$work/$name.log" >&2; die "goscrape $url failed (exit $rc)" ;;
+    0) mirrored=$((mirrored + 1)) ;;
+    124)
+      mirrored=$((mirrored + 1))
+      echo "scrape: $url stopped after $limit, keeping the partial mirror"
+      continue
+      ;;
+    *)
+      tail -n 20 "$work/$name.log" >&2
+      echo "scrape: WARNING: skipping $url, its start page failed (exit $rc)" >&2
+      failed_sites+=("$url")
+      host=${url#*://}
+      rmdir "$VH/${host%%/*}" 2>/dev/null || true # only if nothing was mirrored
+      continue
+      ;;
   esac
   # the start page is the first "Downloading webpage"; JSON escapes & as \u0026
   if [ "$depth" -ge 2 ]; then
@@ -140,6 +152,7 @@ while read -r name url; do
         sed 's/.*"url":"//; s/".*//; s/\\u0026/\&/g')
   fi
 done < "$work/sites"
+[ "$mirrored" -gt 0 ] || die "every site failed (see $LOG)"
 
 if [ "${#pages[@]}" -gt 0 ]; then
   echo "scrape: ${#pages[@]} linked pages to depth $((depth - 1)), $JOBS at a time"
@@ -168,6 +181,8 @@ if [ "${#pages[@]}" -gt 0 ]; then
   [ "$late" -eq 0 ] || echo "scrape: $late of them stopped after $limit, keeping the partial mirror"
   [ "$failed" -eq 0 ] || echo "scrape: $failed of them failed (see $LOG)"
 fi
+[ "${#failed_sites[@]}" -eq 0 ] ||
+  echo "scrape: skipped ${#failed_sites[@]} sites whose start page failed: ${failed_sites[*]}"
 finish
 trap - EXIT
 # several runs can fetch the same page: count each URL once
