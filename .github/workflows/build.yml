@@ -22,10 +22,8 @@ jobs:
       - uses: hashicorp/setup-packer@v3
         with:
           version: ${{ env.PACKER_VERSION }}
-      # Not a prek hook: it downloads the plugins (packer init) and needs
-      # ansible-playbook, which the runner image ships.
-      - run: packer init . && packer validate .
-      # .pre-commit-config.yaml; its packer fmt hook uses the packer above.
+      - run: packer init .
+      # prek.toml runs both Packer checks; the runner ships ansible-playbook.
       # latest-known: the newest prek whose checksum this action release bundles.
       - uses: j178/prek-action@v3.1.0
         with:

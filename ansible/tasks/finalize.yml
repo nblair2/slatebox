@@ -1,4 +1,25 @@
 ---
+- name: Create the documentation directory
+  ansible.builtin.file:
+    path: /usr/local/share/doc/slatebox
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install licenses and provenance
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../{{ item }}"
+    dest: /usr/local/share/doc/slatebox/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - LICENSE
+    - LICENSE.greybox
+    - LICENSE.topgen
+    - README.md
+
 # Network: the host's first NIC gets DHCP; the external NIC is left to
 # greybox's RJ45 node.
 - name: Remove cloud-init's netplan configuration
