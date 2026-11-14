@@ -1,5 +1,0 @@
-# Sites scraped into the image at build time: "URL [DEPTH]" per line
-# (DEPTH is the wget recursion level, default 1).
-example.com
-example.org
-info.cern.ch

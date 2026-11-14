@@ -1,6 +1,3 @@
-__pycache__/
-.pytest_cache/
 build/
-packer/packer_cache/
-*.pkrvars.hcl
-!packer/example.pkrvars.hcl
+packer_cache/
+*.log

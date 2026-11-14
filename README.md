@@ -1,188 +1,133 @@
 # slatebox
 
-A single-host Internet simulator in one VM image. It combines two CMU-SEI projects:
+A single-host Internet simulator packaged as one qcow2 VM image, built with Packer on Ubuntu 26.04.
 
-- **[greybox](https://github.com/cmu-sei/greybox)**: a [CORE](https://github.com/coreemu/core)
-  map of 69 FRR BGP backbone routers plus client nodes.
-- **[topgen](https://github.com/cmu-sei/topgen)**: fake web (nginx), DNS (bind9: root, TLD and
-  caching servers) and mail (postfix and dovecot) services. They run in the map's `topgen.info` node.
+Inside the image, [CORE](https://github.com/coreemu/core) 9.2.1 runs the greybox backbone map:
+69 FRR routers speaking BGP, plus client hosts. One node, `topgen.info`, runs the topgen services:
+web (nginx serving sites mirrored at build time), DNS (bind9 root, TLD and caching servers,
+reachable as 8.8.8.8) and mail (postfix and dovecot). One RJ45 node connects the map to a NIC of
+the VM, so outside machines can join the simulated Internet.
 
-Upstream targets Fedora and CORE 8 or earlier. slatebox keeps the upstream code as it is under
-`vendor/` and adds small patches. It runs on **Ubuntu 26.04** with **CORE 9.2.1**, and Packer builds
-it into a **qcow2** image. It also adds:
+## Provenance
 
-- a CRL;
-- web content scraped at build time or pulled from S3;
-- a root CA that is either generated during the build or supplied by you.
+greybox and topgen are CMU-SEI projects, Copyright 2016 Carnegie Mellon University, BSD-licensed
+with a US Government Purpose Rights notice (`LICENSE.greybox`, `LICENSE.topgen`). The files derived
+from them were taken from these upstream commits and adapted for Ubuntu, CORE 9 and FRR 10:
 
-topgen and greybox are Copyright 2016 Carnegie Mellon University. They are BSD-licensed, with a
-US Government Purpose Rights notice; see `vendor/*/LICENSE` and `vendor/*/LICENSE.US_GOV`.
-`vendor/UPSTREAM.md` gives the pinned upstream commits.
+- [topgen](https://github.com/cmu-sei/topgen) `e0ab5441a860a98fce4a49c249fe9b61a0e56747`:
+  `topgen-mkdns.sh`, `topgen-vmail.sh`, `vmail.cfg`, `delegations.dns`, and the landing page in
+  `topgen-scrape.sh`.
+- [greybox](https://github.com/cmu-sei/greybox) `e89c3754491db97599db073bbeb18fc7b20a7240`:
+  `backbone.hosts`, `keepalived.conf`, `topgen-boot` (the map's `TopGenBoot.sh`) and the map.
+  `files/etc/greybox/map.xml` was converted once to CORE XML from `share/maps/backbone_ext.imn`
+  and is now maintained by hand.
 
-## Quick start
-
-You need `packer` (1.10 or later), `qemu-system-x86`, `qemu-utils` and `xorriso`.
-`/dev/kvm` is strongly recommended.
-
-```sh
-cp packer/example.pkrvars.hcl packer/my.pkrvars.hcl   # edit as needed
-make image VARS=packer/my.pkrvars.hcl                 # -> build/image/slatebox.qcow2
-ACCEL=kvm tests/smoke.sh build/image/slatebox.qcow2   # optional end-to-end check
-make test                                             # shellcheck, PKI test, converter tests
-```
-
-The build boots the Ubuntu cloud image and runs the scripts in `packer/provision/` in order:
-
-| Script | What it does |
-|---|---|
-| `00-base.sh` | Installs the packages. |
-| `10-core.sh` | Installs CORE in `/opt/core/venv`. |
-| `20-install.sh` | Runs `install.sh`. |
-| `30-pki.sh` | Creates or imports the CA. |
-| `40-content.sh` | Fetches the web content. |
-| `50-topgen-config.sh` | Generates the mail and DNS configuration. |
-| `60-greybox.sh` | Converts the map to CORE XML. |
-| `90-finalize.sh` | Cleans up the image. |
-
-`install.sh` also works on its own, on any Ubuntu 26.04 host that has the packages from `00-base.sh`
-and CORE installed.
-
-## Variables
-
-Every variable has a default; see `packer/variables.pkr.hcl`. Relative paths are resolved from `packer/`.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `accelerator` | `kvm` | `tcg` if there is no KVM. It works, but is very slow. |
-| `cpus`, `memory`, `disk_size` | `4`, `8192`, `20G` | Build VM and image size. |
-| `ubuntu_image_url`, `ubuntu_image_checksum` | resolute cloud image, `file:` SHA256SUMS | Base image. |
-| `output_dir`, `vm_name` | `../build/image`, `slatebox` | Output is `<output_dir>/<vm_name>.qcow2`. |
-| `admin_password` | `slatebox` | Password of the `slatebox` login user. |
-| `core_version` | `9.2.1` | CORE release `.deb`. |
-| `map` | `backbone` | `vendor/greybox/share/maps/<map>.imn`. |
-| `rj45_ifaces` | `""` | Maps RJ45 nodes to host NICs, e.g. `ethX=ens4` (for `backbone_ext`). |
-| `content_source` | `scrape` | `scrape` or `s3`. |
-| `scrape_sites_file` | `../config/scrape_sites.txt` | One `URL [DEPTH]` per line. |
-| `vmail_cfg_file`, `delegations_file` | `../config/vmail.cfg`, `../config/delegations.dns` | topgen mail domains and DNS delegations. |
-| `s3_endpoint`, `s3_bucket`, `s3_prefix`, `s3_region` | | S3 source. |
-| `s3_access_key_id`, `s3_secret_access_key` | | Sensitive. Can be set as `PKR_VAR_…` in the environment. |
-| `ca_mode` | `self` | `self` or `external`. |
-| `ca_subject`, `ca_days` | `/C=US/…/CN=topgen_ca`, `7300` | Used in self mode. |
-| `ca_cert_file`, `ca_key_file`, `ca_chain_file` | | Used in external mode. The chain is optional. |
-| `crl_url`, `crl_days` | `http://topgen.info/topgen_ca.crl`, `3650` | CRL distribution point and lifetime. |
-| `build_proxy`, `build_ca_file` | | HTTPS proxy and extra CA, used only during the build. |
-
-## CA modes
-
-- **`self`**: the build generates a root CA (`topgen-ca.sh init`).
-- **`external`**: you provide a CA certificate and key, and optionally a chain up to your own root.
-  `topgen-ca.sh import` checks that the key matches the certificate and that the chain verifies.
-  The chain is appended to every leaf certificate.
-
-  Clients may also check the CA certificate against your root's CRL distribution point, so that URL
-  must be reachable inside the simulation.
-
-Either way, the CA and its database are in `/var/lib/topgen/etc/` (`topgen_ca.cer`, `ca/`). Leaf
-certificates get random serials, `extendedKeyUsage=serverAuth` and a CRL distribution point of
-`crl_url`. Use `topgen-ca.sh issue|revoke|gencrl` to manage certificates after the build.
-
-## CRL
-
-The CRL is written in DER to `/var/lib/topgen/vhosts/topgen.info/topgen_ca.crl`, with a PEM copy, and
-served at `http://topgen.info/topgen_ca.crl`. Regenerate it with `topgen-ca.sh gencrl`.
-`topgen-add-crl.sh` adds a CRL to images built without one.
-
-## Web content
-
-- **`scrape`**: `topgen-scrape.sh` mirrors the sites listed in `scrape_sites_file` with wget.
-  Each site gets a certificate and an nginx vhost at its real IP.
-- **`s3`**: `rclone` copies prebuilt content from an S3-compatible bucket, then topgen generates
-  certificates and nginx configuration for it without scraping. Bucket layout:
-
-  ```
-  <prefix>/vhosts/<fqdn>/...   one directory per site, served as-is
-  <prefix>/hosts.nginx         optional "<ip> <fqdn>" lines; otherwise real DNS is used
-  ```
-
-  Credentials are passed only to the build and never written to the image.
-
-## Using the image
-
-Log in as **`slatebox`** with the password `admin_password` (default `slatebox`), on the console or
-with SSH (password authentication is enabled). The user has sudo. Change the password after the
-first login.
-
-cloud-init is still enabled, so you can attach your own NoCloud seed (`cidata`) to add SSH keys and
-users, or to turn off password logins.
-
-On boot, `greybox.service` starts `core-daemon` and loads `/etc/greybox/map.xml`.
-
-```sh
-greybox-ctl status                      # session state and nodes
-greybox-ctl exec DeltaUser1 traceroute -n topgen.info
-greybox-ctl exec DeltaUser1 curl --cacert /var/lib/topgen/etc/topgen_ca.cer https://example.com/
-sudo greybox-ctl stop && sudo greybox-ctl start
-```
-
-To get a shell inside a node, run `sudo vcmd -c /tmp/pycore.<session>/<node> -- bash`. The CORE GUI
-(`core-gui`) can attach to the running session over X forwarding. FRR routers have `vtysh`.
-
-The host's `/etc/resolv.conf` is `nameserver 8.8.8.8`, which is the simulated DNS inside the map,
-as greybox recommends. CORE nodes share the host's filesystem, so they use the same file.
-
-## Changes from upstream
-
-The upstream trees in `vendor/` are never edited. `install.sh` copies them and applies:
-
-- `patches/topgen/`
-  - `0001-ubuntu-paths`: Debian paths (`/etc/ssl`, `/var/cache/bind`, root hints) and guards on
-    the SELinux calls.
-  - `0002-vmail-getopts`: fixes the `-c` option of `topgen-vmail.sh`.
-  - `0003-persistent-ca-crl`: a persistent CA database, random serials, an external CA chain, a CRL distribution point and
-    serverAuth on leaf certificates, and a CRL on topgen.info.
-  - `0004-no-fetch`: `topgen-scrape.sh -n` uses existing vhosts, and `-H` sets preset IPs (used for S3).
-  - `0005-dovecot-2.4`: rewrites the generated `dovecot.conf` for Dovecot 2.4 (IMAP only).
-  - `0006-vmail-ca-certs`: the mail server certificates are issued by the TopGen CA instead of
-    being self-signed.
-  - `0007-postfix-compat`: sets `compatibility_level = 2`, as Fedora's stock `main.cf` does.
-- `patches/greybox/0001-topgenboot-ubuntu`: `TopGenBoot.sh` fixes in the maps for Ubuntu
-  (`named -u bind`, `/var/cache/bind/data`, and dovecot started with its output detached
-  so CORE doesn't wait on it).
-
-New files:
-
-| File | What it does |
-|---|---|
-| `src/imn2xml.py` | Converts legacy `.imn` maps to CORE 9 XML. |
-| `src/core_services/` | A generic CORE 9 `UserDefined` service (CORE 9 removed it), driven by the maps' own `dirs`/`files`/`cmdup`/`cmddown`. |
-| `src/sbin/greybox-ctl` | Starts, stops and inspects the session over CORE's gRPC API. |
-| `src/sbin/topgen-ca.sh`, `topgen-add-crl.sh`, `topgen-fetch-content.sh` | PKI and content tools. |
-| `src/systemd/greybox.service` | Starts the map at boot. |
-| `src/frr-shim` | Lets CORE 9.2's FRR service drive FRR 10 (see Notes). |
+`greybox-ctl`, `frr-shim`, the CORE `UserDefined` service, `topgen-ca.sh` and the rest of
+`topgen-scrape.sh` are slatebox's own. Everything that goes into the image lives under `files/`, at its installed path.
 
 ## Repository layout
 
-```
-vendor/{topgen,greybox}/   upstream, verbatim
-patches/{topgen,greybox}/  patches applied by install.sh
-src/                       slatebox additions (see above)
-config/                    default scrape list, vmail.cfg, delegations.dns
-install.sh                 patches and installs everything (runs inside the VM as root)
-packer/                    slatebox.pkr.hcl, variables.pkr.hcl, example.pkrvars.hcl, provision/
-tests/                     test_pki.sh, pytest converter tests, smoke.sh (boots the image)
+| Path | Contents |
+|---|---|
+| `slatebox.pkr.hcl`, `variables.pkr.hcl` | Packer build |
+| `scripts/provision.sh` | Runs as root in the build VM: packages, CORE, overlay, content, checks |
+| `files/` | Copied onto the image's `/` |
+| `tests/smoke.sh` | Boots the image and checks it end to end |
+| `.github/workflows/build.yml` | CI |
+
+## How CI builds it
+
+On every push (and on manual dispatch), `.github/workflows/build.yml` runs two jobs:
+
+1. **lint**: `packer fmt` and `packer validate`, shellcheck, `xmllint` on the map, and a Python
+   syntax check of `greybox-ctl` and the CORE service.
+2. **build**: enables KVM on the runner, runs `packer build`, then `tests/smoke.sh` on the image.
+   The smoke test boots the image with a second NIC on a tap device, waits for the map to start,
+   and checks routing, DNS, HTTPS with the TopGen CA, the CRL, mail, and a DHCP lease from
+   outside. On success the image is uploaded as the `slatebox-qcow2` artifact (kept 3 days); on
+   failure the Packer log, serial console logs and smoke diagnostics are uploaded instead.
+
+A build takes about two hours, most of it the site scrape.
+
+## Building locally
+
+You need Packer 1.10 or later, `qemu-system-x86`, `qemu-utils`, `xorriso` and a working
+`/dev/kvm`. The smoke test also needs `sshpass`, `busybox`, `dig` and sudo.
+
+```sh
+packer init .
+packer build .                                  # -> build/image/slatebox.qcow2
+packer build -var 'scrape_sites=["https://example.com"]' -var scrape_depth=1 .
+tests/smoke.sh build/image/slatebox.qcow2
 ```
 
-## Notes
+## Variables
 
-- **No KVM:** with `accelerator = "tcg"`, QEMU emulates the CPU and the build takes hours. SSH
-  waits up to 60 minutes.
-- **Proxies:** `build_proxy` must be an HTTPS (CONNECT) proxy. It is used for apt's HTTPS sources,
-  wget, rclone and uv; plain HTTP goes direct. Under QEMU user networking, the build host is
-  `10.0.2.2`. `build_ca_file` is added to the trust store for the build only. `90-finalize.sh`
-  removes both.
-- The host's own `frr`, `nginx`, `named`, `postfix`, `dovecot`, `tor` and `isc-dhcp-server` units
-  are disabled, because these daemons run inside CORE nodes.
-- **FRR 10:** CORE 9.2.1's `frrboot.sh` predates FRR 10. `src/frr-shim`, linked as
-  `/usr/local/sbin/{zebra,bgpd,staticd,...}`, starts `mgmtd` (needed for static routes), drops
-  `-f` for `staticd`, and detaches the daemons' stdout so CORE doesn't wait on them forever.
-- `topgen-tor.sh` is installed but not used, because the backbone map has no Tor network.
+| Variable | Default | Meaning |
+|---|---|---|
+| `ubuntu_image_url`, `ubuntu_image_checksum` | resolute cloud image, `file:` SHA256SUMS | Base image |
+| `cpus`, `memory` | `4`, `8192` | Build VM size (MiB) |
+| `disk_size` | `40G` | Virtual disk size; the qcow2 is sparse and compressed |
+| `output_dir` | `build/image` | Receives `slatebox.qcow2` |
+| `admin_password` | `slatebox` | Password of the `slatebox` login user |
+| `ext_iface` | `ens4` | NIC given to the map's RJ45 node |
+| `scrape_sites` | `["https://www.cmu.edu"]` | Sites mirrored into the image (`http://` or `https://`) |
+| `scrape_depth` | `3` | Link depth per site |
+| `scrape_timeout` | `60m` | Time limit per site; a partial mirror is kept |
+
+CORE, uv, Python and goscrape versions are pinned in `scripts/provision.sh`.
+
+## External interface
+
+The RJ45 node is attached to `iap1-rtr.disa.mil`, which owns `12.0.0.0/24`:
+
+- router address `12.0.0.41`;
+- DHCP on that router hands out `12.0.0.100` to `12.0.0.250`, with `12.0.0.41` as gateway and
+  `8.8.8.8` as DNS server.
+
+Connect machines to the VM's `ext_iface` NIC (the second NIC, `ens4`, on a typical KVM setup) and
+they get an address and reach the simulated Internet. The host itself does not configure that
+NIC. If the NIC is missing at boot, `greybox-ctl` creates a dummy interface with that name so the
+map still starts.
+
+To use a different NIC on a built image, change the name in both
+`/etc/default/greybox` (`GREYBOX_EXT_IFACE=`) and `/etc/systemd/network/10-greybox-ext.network`
+(`Name=`), then reboot.
+
+## Using the image
+
+Log in as `slatebox` with `admin_password`, on the console or with SSH (password logins are
+enabled). The user has sudo. The first NIC gets its address by DHCP. cloud-init is still
+installed, so a NoCloud seed (`cidata`) can add SSH keys or users.
+
+At boot, `greybox.service` starts the map from `/etc/greybox/map.xml`; with 69 routers this takes
+a few minutes, and BGP needs a few more to converge.
+
+```sh
+greybox-ctl status
+greybox-ctl exec CharlieUser1 traceroute -n www.cmu.edu
+greybox-ctl exec CharlieUser1 curl --cacert /var/lib/topgen/etc/topgen_ca.cer https://www.cmu.edu/
+sudo systemctl restart greybox
+```
+
+The host's `/etc/resolv.conf` is `nameserver 8.8.8.8`, the simulated resolver, as greybox
+recommends; CORE nodes share it. The host's own `frr`, `nginx`, `named`, `postfix`, `dovecot`,
+`keepalived` and `isc-dhcp-server` units are disabled, because these daemons run inside nodes.
+`https://topgen.info/` lists the mirrored sites.
+
+## CA and CRL
+
+The build generates a root CA (`/C=US/ST=PA/L=Pgh/O=CMU/OU=CERT/CN=topgen_ca`, 20 years) in
+`/var/lib/topgen/etc/` (`topgen_ca.cer`, `topgen_ca.key`, database in `ca/`). Every vhost and mail
+server certificate is issued by it, with a random serial, `extendedKeyUsage=serverAuth` and a CRL
+distribution point of `http://topgen.info/topgen_ca.crl`. Clients in the simulation must trust
+`topgen_ca.cer`; it is also served at `https://topgen.info/topgen_ca.cer`.
+
+The CRL is written in DER to `/var/lib/topgen/vhosts/topgen.info/topgen_ca.crl`. Manage
+certificates with:
+
+```sh
+sudo topgen-ca.sh issue KEY CERT NAME...
+sudo topgen-ca.sh revoke CERT
+sudo topgen-ca.sh gencrl
+```
