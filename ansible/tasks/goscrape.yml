@@ -6,6 +6,11 @@
     checksum: sha256:{{ goscrape_sha256 }}
     timeout: 60
     mode: "0644"
+  # GitHub's release downloads drop a connection now and then
+  register: goscrape_tgz
+  until: goscrape_tgz is succeeded
+  retries: 3
+  delay: 15
 
 - name: Unpack the goscrape binary into the scratch directory
   ansible.builtin.unarchive:

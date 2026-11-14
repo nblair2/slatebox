@@ -12,6 +12,11 @@
     checksum: sha256:{{ core_deb_sha256 }}
     timeout: 60
     mode: "0644"
+  # GitHub's release downloads drop a connection now and then
+  register: core_deb
+  until: core_deb is succeeded
+  retries: 3
+  delay: 15
 
 - name: Install the CORE package without its Python step
   # NO_PYTHON=1 makes the package's postinst skip its pip install: Ubuntu's
@@ -30,6 +35,11 @@
     checksum: sha256:{{ uv_sha256 }}
     timeout: 60
     mode: "0644"
+  # GitHub's release downloads drop a connection now and then
+  register: uv_tgz
+  until: uv_tgz is succeeded
+  retries: 3
+  delay: 15
 
 - name: Unpack uv into the scratch directory
   ansible.builtin.unarchive:

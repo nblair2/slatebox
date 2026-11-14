@@ -64,6 +64,23 @@ job() {
   echo "$rc" > "$work/$name.rc"
 }
 
+# retry_job NAME DEPTH URL: job, tried up to 3 times. goscrape fails only if
+# its first page does, which is mostly a dropped connection (a "connection
+# reset by peer" from the site), so wait a little and try again.
+retry_job() {
+  local try
+  for try in 1 2 3; do
+    job "$@"
+    case $(cat "$work/$1.rc") in
+      0 | 124) return 0 ;;
+    esac
+    if [ "$try" -lt 3 ]; then
+      echo "scrape: $3 failed (exit $(cat "$work/$1.rc")), trying again" >&2
+      sleep $((try * 15))
+    fi
+  done
+}
+
 # page_job NAME DEPTH URL: job, for a page that still loads on its own host.
 # One that redirects to another host would mirror that site instead, and one
 # that fails would only fail again; NAME.rc says "skip" for those.
@@ -73,13 +90,7 @@ page_job() {
   final=$(curl -sL -o /dev/null --max-time 30 --retry 2 --retry-all-errors -A "$UA" \
     -w '%{http_code} %{url_effective}' "$3" | awk '{ split($2, u, "/"); print $1, u[3] }' || true)
   if [ "$final" = "200 $host" ]; then
-    job "$@"
-    # goscrape fails only if its first page does (a dropped connection, say):
-    # try once more
-    case $(cat "$work/$1.rc") in
-      0 | 124) ;;
-      *) sleep 10; job "$@" ;;
-    esac
+    retry_job "$@"
   else
     echo skip > "$work/$1.rc"
   fi
@@ -110,7 +121,7 @@ for url; do
   i=$((i + 1))
   echo "scrape: $url (depth $depth, at most $limit)"
   printf 'site%03d %s\n' "$i" "$url" >> "$work/sites"
-  spawn job "$(printf 'site%03d' "$i")" "$first" "$url"
+  spawn retry_job "$(printf 'site%03d' "$i")" "$first" "$url"
 done
 wait
 
