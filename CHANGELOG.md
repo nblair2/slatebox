@@ -1,3 +1,17 @@
+# [2026.11.14.1](https://github.com/nblair2/slatebox/compare/v2026.11.14...v2026.11.14.1) - 2026-11-14
+
+### 📚 Documentation
+
+- add badges [_(bddacc08)_](https://github.com/nblair2/slatebox/commit/bddacc08fcaa271a83026dde85c607e148e5f1af)
+
+### 🧹 Chore
+
+- qcow2 --> qc2 [_(b1e5d3bc)_](https://github.com/nblair2/slatebox/commit/b1e5d3bc4b2dafe089075d68212a7380388553e6)
+
+- _(ci)_ use releasaurus micro version [_(1b2abf3c)_](https://github.com/nblair2/slatebox/commit/1b2abf3c27ed0bd86a4d1c02f81714277809bf5a)
+
+- _(scrape)_ output progress to console [_(3cbe80c0)_](https://github.com/nblair2/slatebox/commit/3cbe80c04b7b95b85fdc1ceb7b56457a2ecf5ec9)
+
 # [2026.11.14](https://github.com/nblair2/slatebox/releases/tag/v2026.11.14) - 2026-11-14
 
 ### 🚀 Features
