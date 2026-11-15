@@ -50,8 +50,8 @@ variable "scrape_sites" {
   description = "sites mirrored into the image"
 
   validation {
-    condition     = alltrue([for s in var.scrape_sites : can(regex("^https?://", s))])
-    error_message = "Each scrape_sites entry must start with http:// or https://."
+    condition     = alltrue([for s in var.scrape_sites : can(regex("^https?://[^/?#]+", s))])
+    error_message = "Each scrape_sites entry must be an http:// or https:// URL with a host."
   }
 }
 
@@ -78,8 +78,19 @@ variable "scrape_jobs" {
   description = "goscrape processes at once (only scrape_depth >= 2 or several sites use more than one)"
 
   validation {
-    condition     = var.scrape_jobs >= 1
-    error_message = "The scrape_jobs value must be at least 1."
+    condition     = var.scrape_jobs >= 1 && floor(var.scrape_jobs) == var.scrape_jobs
+    error_message = "The scrape_jobs value must be a whole number, at least 1."
+  }
+}
+
+variable "scrape_site_jobs" {
+  type        = number
+  default     = 2
+  description = "goscrape processes at once on one site (scrape_depth >= 2); more trip sites' rate limits and bot checks"
+
+  validation {
+    condition     = var.scrape_site_jobs >= 1 && floor(var.scrape_site_jobs) == var.scrape_site_jobs
+    error_message = "The scrape_site_jobs value must be a whole number, at least 1."
   }
 }
 

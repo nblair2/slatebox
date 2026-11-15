@@ -13,6 +13,7 @@
         argv: "{{ ['topgen-scrape.sh', scrape_depth | string, scrape_timeout] + scrape_sites }}"
       environment:
         TOPGEN_SCRAPE_JOBS: "{{ scrape_jobs }}"
+        TOPGEN_SCRAPE_SITE_JOBS: "{{ scrape_site_jobs }}"
         # the serial console, i.e. serial-build.log on the build host
         TOPGEN_SCRAPE_PROGRESS: /dev/console
       async: 604800
