@@ -321,12 +321,10 @@ def ext(vm, converged, request):
     return e
 
 
-def mail_servers():
-    """(host, ip, user, password) of the first account of each vmail.cfg server."""
-    rows = []
-    for line in (REPO / "files/etc/topgen/vmail.cfg").read_text().splitlines():
-        f = line.split()
-        if f and not f[0].startswith("#"):
-            user, password = f[2].split(":", 1)
-            rows.append((f[0], f[1], user, password))
+@pytest.fixture(scope="session")
+def mail_domains(vm):
+    """(server, ip) of each mail domain the VM serves (its merged vmail.cfg)."""
+    r = vm.sh("awk '{ print $1, $2 }' /var/lib/topgen/etc/vmail.cfg")
+    rows = [tuple(line.split()) for line in r.out.splitlines()]
+    assert rows, f"no mail domains in /var/lib/topgen/etc/vmail.cfg: {r.out}"
     return rows

@@ -7,10 +7,13 @@
 #   dns          regenerate the bind9 configuration (start does this too)
 #   reload-dns   regenerate it and make the running named use it:
 #                  greybox-ctl exec topgen.info topgen-boot reload-dns
+#   mail         regenerate the postfix and dovecot configuration (start too)
+#   reload-mail  regenerate mail and DNS and make the running daemons use them
 #
 # DNS data comes from the scraped and mail hosts, the greybox backbone, the
 # delegations in /etc/topgen/delegations.dns, and user records appended to
 # /etc/topgen/hosts.custom ("IP name..." per line, like /etc/hosts).
+# Mail domains come from /etc/topgen/vmail.cfg and the mirrored sites.
 # TOPGEN_VARLIB and TOPGEN_ETC exist for tests.
 
 PATH=$PATH:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -59,6 +62,23 @@ custom_records() {
       }' - "$E/hosts.custom"
 }
 
+# Print the mail domains: vmail.cfg's lines, then mail.<domain> at the site's
+# address for each mirrored site whose domain and address are still free.
+vmail_cfg() {
+  awk '
+    /^[ \t]*(#|$)/ { next }
+    FILENAME == ARGV[1] { dom[substr($1, index($1, ".") + 1)]; ip[$2]; print; next }
+    $2 == "topgen.info" { next }
+    { n = split($2, l, "."); d = l[n - 1] "." l[n] }
+    !(d in dom) && !($1 in ip) { dom[d]; ip[$1]; print "mail." d, $1 }
+  ' "$E/vmail.cfg" "$V/etc/hosts.nginx"
+}
+
+mail() {
+  vmail_cfg > "$V/etc/vmail.cfg" &&
+    topgen-vmail.sh -f -t "$V" -c "$V/etc/vmail.cfg"
+}
+
 # topgen-mkdns.sh rewrites named.conf and the zones from scratch, then we check
 # the result. $1 is an extra hosts file (or nothing).
 mkdns() {
@@ -85,15 +105,28 @@ reload_dns() {
   /usr/sbin/rndc reload >/dev/null && /usr/sbin/rndc flush
 }
 
+# put the served addresses on lo (ones already there fail quietly)
+add_addrs() {
+  awk '{print $1}' "$V"/etc/hosts.* | sort -u | while read -r i; do
+    /usr/sbin/ip addr add "$i" scope global dev lo 2>/dev/null
+  done
+}
+
+reload_mail() {
+  mail && reload_dns || return
+  add_addrs
+  /usr/sbin/postfix -c "$V/etc/postfix" reload &&
+    /usr/sbin/dovecot -c "$V/etc/postfix/dovecot.conf" reload
+}
+
 status() {
   pidof named && pidof nginx && pidof master && pidof dovecot
 }
 
 start() {
+  mail # writes hosts.vmail, which dns reads
   dns
-  awk '{print $1}' "$V"/etc/hosts.* | sort -u | while read -r i; do
-    /usr/sbin/ip addr add "$i" scope global dev lo
-  done
+  add_addrs
   [ -s "$V/etc/named.conf" ] && \
     /usr/sbin/named -u bind -c "$V/etc/named.conf"
   [ -s "$V/etc/nginx.conf" ] && \
@@ -122,14 +155,17 @@ restart() {
 }
 
 case "$1" in
-  start|stop|restart|status|dns)
+  start|stop|restart|status|dns|mail)
     $1
     ;;
   reload-dns)
     reload_dns
     ;;
+  reload-mail)
+    reload_mail
+    ;;
   *)
-    echo "Usage: $0 {start|stop|restart|status|dns|reload-dns}"
+    echo "Usage: $0 {start|stop|restart|status|dns|reload-dns|mail|reload-mail}"
     exit 2
     ;;
 esac
