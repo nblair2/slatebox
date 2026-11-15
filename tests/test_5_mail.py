@@ -1,62 +1,120 @@
-"""Each vmail.cfg mail server takes IMAPS logins and authenticated SMTP submission."""
+"""Mail: accounts written to /etc/topgen/vmail.cfg log in and exchange mail after
+`topgen-boot reload-mail`; port 25 takes mail for a mirrored site's domain from
+anyone (into the catch-all mailbox) but relays nothing."""
 
+import shlex
 import time
 
 import pytest
 
-from conftest import CA, mail_servers
+from conftest import CA
 
-SERVERS = mail_servers()
-IDS = [s[0] for s in SERVERS]
+CFG, BAK = "/etc/topgen/vmail.cfg", "/run/vmail.cfg.test-bak"
+RELOAD = "greybox-ctl exec topgen.info topgen-boot reload-mail"
+# (server, ip, user, password)
+ACCOUNTS = [
+    ("mail.slatebox-one.lab", "203.0.113.25", "alice", "test-pw1"),
+    ("mail.slatebox-two.lab", "203.0.113.26", "bob", "test-pw2"),
+]
+IDS = [a[0] for a in ACCOUNTS]
 
 
-def imap(host_ip, user, password, url_path="", extra=""):
-    """curl against imaps://imap.topgen.info (its cert name) at host_ip."""
+def address(account):
+    server, _, user, _ = account
+    return f"{user}@{server.split('.', 1)[1]}"
+
+
+def imap(ip, user, password, extra=""):
+    """curl against imaps://imap.topgen.info (its cert name) at ip."""
     return (
-        f"curl -sSf -m 30 --cacert {CA} --resolve imap.topgen.info:993:{host_ip} "
-        f"--user {user}:{password} {extra} imaps://imap.topgen.info/{url_path}"
+        f"curl -sSf -m 30 --cacert {CA} --resolve imap.topgen.info:993:{ip} "
+        f"--user {user}:{password} {extra} imaps://imap.topgen.info/INBOX"
     )
 
 
-def smtp(host_ip, user, password, extra=""):
-    """curl against smtp://smtp.topgen.info:587 (STARTTLS required) at host_ip."""
+def smtp(ip, port, frm, rcpt, subject, extra=""):
+    """curl sending a short message to rcpt over SMTP at ip:port."""
+    msg = f"printf 'From: {frm}\\r\\nTo: {rcpt}\\r\\nSubject: {subject}\\r\\n\\r\\nhello\\r\\n'"
     return (
-        f"curl -sSf -m 30 --ssl-reqd --cacert {CA} --resolve smtp.topgen.info:587:{host_ip} "
-        f"--user {user}:{password} {extra} smtp://smtp.topgen.info:587/"
+        f"{msg} | curl -sSf -m 30 --resolve smtp.topgen.info:{port}:{ip} {extra} "
+        f"--mail-from {frm} --mail-rcpt {rcpt} -T - smtp://smtp.topgen.info:{port}/"
     )
 
 
-@pytest.mark.parametrize("host,ip,user,password", SERVERS, ids=IDS)
-def test_imaps_login(vm, host, ip, user, password):
-    """A vmail.cfg user logs in over IMAPS (certificate from the TopGen CA)."""
+def submit(vm, account, rcpt, subject):
+    """Authenticated submission on port 587 (STARTTLS required)."""
+    _, ip, user, password = account
+    tls = f"--ssl-reqd --cacert {CA} --user {user}:{password}"
+    return vm.charlie(smtp(ip, 587, address(account), rcpt, subject, tls))
+
+
+def eventually(check, tries=10):
+    """Delivery is asynchronous: retry check() for up to 30 s."""
+    for _ in range(tries):
+        if check():
+            return True
+        time.sleep(3)
+    return False
+
+
+@pytest.fixture(scope="module", autouse=True)
+def accounts(vm):
+    """vmail.cfg holds only ACCOUNTS while this module runs."""
+    lines = [f"{s} {ip} {u}:{p}" for s, ip, u, p in ACCOUNTS]
+    assert vm.sh(f"cp -a {CFG} {BAK} && printf '%s\\n' {shlex.join(lines)} > {CFG}").ok
+    try:
+        r = vm.sh(RELOAD)
+        assert r.ok, r.out
+        yield
+    finally:
+        vm.sh(f"mv {BAK} {CFG} && {RELOAD}")
+
+
+@pytest.fixture(scope="module")
+def site(vhost, mail_domains):
+    """(server, ip) of the vhost's generated mail domain."""
+    server = "mail." + ".".join(vhost[0].split(".")[-2:])
+    ip = dict(mail_domains).get(server)
+    assert ip, f"no {server} among {mail_domains}"
+    return server, ip
+
+
+@pytest.mark.parametrize("account", ACCOUNTS, ids=IDS)
+def test_imaps_login(vm, account):
+    """The account logs in over IMAPS (certificate from the TopGen CA)."""
+    _, ip, user, password = account
     r = vm.charlie(imap(ip, user, password))
     assert r.ok, r.out
 
 
-@pytest.mark.parametrize("host,ip,user,password", SERVERS, ids=IDS)
-def test_smtp_submission_auth(vm, host, ip, user, password):
-    """A vmail.cfg user authenticates for SMTP submission on port 587."""
-    r = vm.charlie(smtp(ip, user, password, "-X NOOP"))
-    assert r.ok, r.out
-
-
-@pytest.mark.skipif(len(SERVERS) < 2, reason="needs two mail domains in vmail.cfg")
 def test_mail_crosses_domains(vm):
-    """A message submitted on the first domain arrives in a mailbox of the second."""
-    (h1, ip1, u1, p1), (h2, ip2, u2, p2) = SERVERS[:2]
-    d1, d2 = h1.split(".", 1)[1], h2.split(".", 1)[1]
+    """Mail submitted by one account arrives in the other's INBOX."""
+    sender, rcpt = ACCOUNTS
     subject = f"slatebox-test-{time.time_ns()}"
-    r = vm.charlie(
-        f"printf 'From: {u1}@{d1}\\r\\nTo: {u2}@{d2}\\r\\nSubject: {subject}\\r\\n\\r\\nhello\\r\\n' | "
-        + smtp(ip1, u1, p1, f"--mail-from {u1}@{d1} --mail-rcpt {u2}@{d2} -T -")
-    )
+    r = submit(vm, sender, address(rcpt), subject)
     assert r.ok, f"submission failed: {r.out}"
-    for _ in range(10):  # delivery is asynchronous
-        r = vm.charlie(imap(ip2, u2, p2, "INBOX", f"-X 'SEARCH SUBJECT {subject}'"))
-        if r.ok and r.out.split()[2:]:  # "* SEARCH 3"
-            return
-        time.sleep(3)
-    pytest.fail(
-        f"not in {u2}@{d2}'s INBOX after 30 s: {r.out}\n"
-        + vm.node("topgen.info", "tail -n 20 /var/log/mail.log /var/log/dovecot.log").out
-    )
+    _, ip, user, password = rcpt
+    search = imap(ip, user, password, f"-X 'SEARCH SUBJECT {subject}'")
+
+    def found():
+        r = vm.charlie(search)
+        return r.ok and r.out.split()[2:]  # "* SEARCH 3"
+
+    assert eventually(found), vm.node("topgen.info", "tail -n 20 /var/log/mail.log /var/log/dovecot.log").out
+
+
+def test_site_receives_on_port_25(vm, site):
+    """Unauthenticated mail to a mirrored site's domain lands in the catch-all DFLT."""
+    server, ip = site
+    subject = f"slatebox-test-{time.time_ns()}"
+    r = vm.charlie(smtp(ip, 25, "someone@example.net", f"nobody@{server.split('.', 1)[1]}", subject))
+    assert r.ok, r.out
+    assert eventually(lambda: vm.sh(f"grep -qs {subject} /var/lib/topgen/vmail/DFLT").ok), vm.node(
+        "topgen.info", "tail -n 20 /var/log/mail.log"
+    ).out
+
+
+def test_port_25_does_not_relay(vm, site):
+    """Unauthenticated mail to an outside domain is refused."""
+    r = vm.charlie(smtp(site[1], 25, "someone@example.net", "victim@example.org", "slatebox-test-relay"))
+    assert not r.ok and "RCPT" in r.out, r.out

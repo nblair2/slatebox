@@ -269,7 +269,7 @@ WARNING: skipping host $FQDN: ip $IPADDR in delegated network $NET"
   HOSTS_LIST[$FQDN]=$IPADDR
 
   # is this an MX server?
-  [ "$IS_MX" == "true" ] && DOMAIN_MX[$SLD.$TLD]+=" $FQDN"
+  [ "$IS_MX" == "true" ] && DOMAIN_MX[${FQDN#*.}]+=" $FQDN"
 }
 
 

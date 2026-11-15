@@ -138,10 +138,10 @@ $USAGE_BLURB
 # Start by generating domain-specific configuration entries
 # from the parsed content of $VMAIL_CFG:
 #
-cat $VMAIL_CFG | grep -v ^# | while read HOST ADDR USERS; do
+cat $VMAIL_CFG | grep -v ^# | while read -r HOST ADDR USERS; do
 
-  # skip if no users:
-  [ -n "$USERS" ] || continue
+  # skip blank lines; a domain without users still receives (into DFLT)
+  [ -n "$ADDR" ] || continue
 
   DOMAIN=${HOST#*.}
 
@@ -174,12 +174,13 @@ cat $VMAIL_CFG | grep -v ^# | while read HOST ADDR USERS; do
 
 done
 
+touch $VMAIL_CFGDIR/pf_usr_mbox $VMAIL_CFGDIR/dc_usr_pass
+
 # If, for some reason, no domain-specific config entries were generated
 # (e.g., empty $VMAIL_CFG file), skip generating meaningless global configs:
 [ -s "$VMAIL_HOSTFILE" -a -s "$VMAIL_CFGDIR/pf_virt_dom" -a \
   -s "$VMAIL_CFGDIR/master.cf" -a -s "$VMAIL_CFGDIR/pf_dom_send" -a \
-  -s "$VMAIL_CFGDIR/dc_addr_dom" -a -s "$VMAIL_CFGDIR/pf_usr_mbox" -a \
-  -s "$VMAIL_CFGDIR/dc_usr_pass" ] || exit 0
+  -s "$VMAIL_CFGDIR/dc_addr_dom" ] || exit 0
 
 # generate fixed (components of) postfix & dovecot config files:
 #
@@ -219,7 +220,7 @@ cat > $VMAIL_CFGDIR/main.cf <<- EOT
 	sender_dependent_default_transport_maps =
 	      texthash:$VMAIL_CFGDIR/pf_dom_send
 
-	# force remote clients to authenticate:
+	# force remote clients to authenticate (except on port 25, see master.cf):
 	# (NOTE: see also "submission" entry in master.cf;
 	#        "smtps", identically configured, would listen
 	#        on deprecated port 465)
@@ -305,7 +306,11 @@ N
 	# service  type private unpriv  chroot  wakeup  maxproc  cmd+args
 	# name          (yes)   (yes)   (no)    (never) (100)
 	# ======================================================================
+	# port 25 takes mail for our domains from anyone, like a real MX
 	smtp       inet  n       -       n       -       -       smtpd
+	    -o smtpd_client_restrictions=
+	    -o smtpd_tls_security_level=may
+	    -o smtpd_tls_auth_only=yes
 	submission inet  n       -       n       -       -       smtpd
 	    -o smtpd_sasl_auth_enable=yes
 	    -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject

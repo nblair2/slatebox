@@ -41,7 +41,8 @@
         msg: topgen-scrape.sh failed; its output and the log tail are above
 
 - name: Generate topgen's mail configuration
-  ansible.builtin.command: topgen-vmail.sh -f
+  # the same command the topgen.info node runs at every start
+  ansible.builtin.command: topgen-boot mail
   changed_when: true
 
 - name: Generate topgen's DNS configuration

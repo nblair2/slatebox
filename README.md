@@ -80,8 +80,11 @@ Choose sites and crawl limits with the `scrape_*` build variables. A site whose 
 
 ### Mail
 
-Postfix and Dovecot provide SMTP submission (587, STARTTLS) and IMAPS (993).
-Domains and accounts come from [vmail.cfg](files/etc/topgen/vmail.cfg).
+Postfix and Dovecot provide SMTP (25, inbound for local domains), submission (587, STARTTLS)
+and IMAPS (993). Every mirrored site gets `mail.<domain>`, which only receives mail (into
+`/var/lib/topgen/vmail/DFLT`). Domains with accounts come from
+[vmail.cfg](files/etc/topgen/vmail.cfg); after editing it, run
+`greybox-ctl exec topgen.info topgen-boot reload-mail`.
 
 ### Certificates
 

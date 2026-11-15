@@ -4,7 +4,7 @@ import shlex
 
 import pytest
 
-from conftest import REPO, mail_servers
+from conftest import REPO
 
 ROOT, TLD, RESOLVER = "198.41.0.4", "4.4.4.8", "8.8.8.8"  # a.root-servers.net, ns.level3.net
 BACKBONE = [l.split() for l in (REPO / "files/etc/greybox/backbone.hosts").read_text().splitlines() if l.strip()]
@@ -56,12 +56,12 @@ def test_router_names(vm, ip, name):
     assert f"{name}." in dig(vm, f"@{RESOLVER} -x {ip}")
 
 
-@pytest.mark.parametrize("host,ip,user,password", mail_servers(), ids=[m[0] for m in mail_servers()])
-def test_mail_domain_mx(vm, host, ip, user, password):
-    """Each vmail.cfg domain has an MX record naming its mail server, which resolves."""
-    domain = host.split(".", 1)[1]
-    assert dig(vm, f"@{RESOLVER} {domain} MX") == [f"10 {host}."]
-    assert dig(vm, f"@{RESOLVER} {host} A") == [ip]
+def test_mail_domain_mx(vm, mail_domains):
+    """Each mail domain has an MX record naming its mail server, which resolves."""
+    for host, ip in mail_domains:
+        domain = host.split(".", 1)[1]
+        assert dig(vm, f"@{RESOLVER} {domain} MX") == [f"10 {host}."], host
+        assert dig(vm, f"@{RESOLVER} {host} A") == [ip], host
 
 
 def test_user_records_from_hosts_custom(vm, vhost):
