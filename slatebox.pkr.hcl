@@ -54,12 +54,13 @@ build {
     extra_arguments = [
       "--verbose",
       "--extra-vars", jsonencode({
-        ext_iface      = var.ext_iface
-        scrape_sites   = var.scrape_sites
-        scrape_depth   = var.scrape_depth
-        scrape_timeout = var.scrape_timeout
-        scrape_jobs    = var.scrape_jobs
-        overlay_dir    = var.overlay_dir == "" ? "" : abspath(var.overlay_dir)
+        ext_iface        = var.ext_iface
+        scrape_sites     = var.scrape_sites
+        scrape_depth     = var.scrape_depth
+        scrape_timeout   = var.scrape_timeout
+        scrape_jobs      = var.scrape_jobs
+        scrape_site_jobs = var.scrape_site_jobs
+        overlay_dir      = var.overlay_dir == "" ? "" : abspath(var.overlay_dir)
       }),
     ]
   }

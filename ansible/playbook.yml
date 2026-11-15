@@ -1,8 +1,8 @@
 ---
 # Turns the Ubuntu 26.04 cloud image into slatebox. Packer runs this playbook
 # as root over its SSH connection to the build VM (slatebox.pkr.hcl) and passes
-# ext_iface, scrape_sites, scrape_depth, scrape_timeout, scrape_jobs and
-# overlay_dir as extra vars.
+# ext_iface, scrape_sites, scrape_depth, scrape_timeout, scrape_jobs,
+# scrape_site_jobs and overlay_dir as extra vars.
 # The task files run in this order; cheap failures come before the long scrape.
 - name: Provision slatebox
   hosts: all
@@ -30,6 +30,7 @@
           - scrape_depth | int > 0
           - scrape_timeout is string and scrape_timeout | length > 0
           - scrape_jobs | int > 0
+          - scrape_site_jobs | int > 0
           - overlay_dir is string
 
     - name: Packages

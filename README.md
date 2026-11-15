@@ -38,7 +38,8 @@ Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 | `scrape_sites` | `["https://www.cmu.edu"]` | Websites to mirror |
 | `scrape_depth` | `1` | Crawl depth |
 | `scrape_timeout` | `60m` | Limit for the whole scrape; partial mirrors are kept |
-| `scrape_jobs` | `8` | Parallel goscrape processes; lower it to be gentler on mirrored sites |
+| `scrape_jobs` | `8` | Parallel goscrape processes, over all sites |
+| `scrape_site_jobs` | `2` | Parallel goscrape processes on one site; lower it to be gentler on mirrored sites |
 | `overlay_dir` | `""` | Directory copied onto `/` before the CA, scrape and mail setup |
 
 ## Services
