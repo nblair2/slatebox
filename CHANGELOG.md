@@ -1,3 +1,9 @@
+# [2026.11.15.1](https://github.com/nblair2/slatebox/compare/v2026.11.14.1...v2026.11.15.1) - 2026-11-15
+
+### ⚡ Performance
+
+- _(scrape)_ scrape sites in parallel [_(b189b68e)_](https://github.com/nblair2/slatebox/commit/b189b68eae57afa4ba46f89605b7e27994df4917)
+
 # [2026.11.14.1](https://github.com/nblair2/slatebox/compare/v2026.11.14...v2026.11.14.1) - 2026-11-14
 
 ### 📚 Documentation
