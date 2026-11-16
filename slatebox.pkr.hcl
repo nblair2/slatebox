@@ -60,6 +60,7 @@ build {
         scrape_timeout   = var.scrape_timeout
         scrape_jobs      = var.scrape_jobs
         scrape_site_jobs = var.scrape_site_jobs
+        mail_sites       = var.mail_sites
         overlay_dir      = var.overlay_dir == "" ? "" : abspath(var.overlay_dir)
       }),
     ]

@@ -31,6 +31,7 @@
     - topgen-scrape.sh
     - topgen-mkdns.sh
     - topgen-vmail.sh
+    - topgen-mail-sites.sh
 
 - name: Create topgen's data directories under {{ topgen_varlib }}
   ansible.builtin.file:

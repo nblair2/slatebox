@@ -40,6 +40,7 @@ Build variables are defined in [variables.pkr.hcl](variables.pkr.hcl):
 | `scrape_timeout` | `60m` | Limit for the whole scrape; partial mirrors are kept |
 | `scrape_jobs` | `8` | Parallel goscrape processes, over all sites |
 | `scrape_site_jobs` | `2` | Parallel goscrape processes on one site; lower it to be gentler on mirrored sites |
+| `mail_sites` | `["mail.cmu.edu"]` | Mail servers to simulate |
 | `overlay_dir` | `""` | Directory copied onto `/` before the CA, scrape and mail setup |
 
 ## Services
@@ -81,10 +82,14 @@ Choose sites and crawl limits with the `scrape_*` build variables. A site whose 
 ### Mail
 
 Postfix and Dovecot provide SMTP (25, inbound for local domains), submission (587, STARTTLS)
-and IMAPS (993). Every mirrored site gets `mail.<domain>`, which only receives mail (into
-`/var/lib/topgen/vmail/DFLT`). Domains with accounts come from
-[vmail.cfg](files/etc/topgen/vmail.cfg); after editing it, run
-`greybox-ctl exec topgen.info topgen-boot reload-mail`.
+and IMAPS (993). Each `mail_sites` server, e.g. `mail.cmu.edu`, serves its domain at the
+address real mail for that domain goes to, with the account `administrator:password`; the
+build fails if two servers are left sharing an address. Mail to unknown users lands in
+`/var/lib/topgen/vmail/DFLT`.
+
+To add domains or accounts, add lines to [/etc/topgen/vmail.cfg](files/etc/topgen/vmail.cfg)
+(read at every start), then run `greybox-ctl exec topgen.info topgen-boot reload-mail`.
+A line for a `mail_sites` domain replaces it.
 
 ### Certificates
 

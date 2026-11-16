@@ -13,7 +13,7 @@
 # DNS data comes from the scraped and mail hosts, the greybox backbone, the
 # delegations in /etc/topgen/delegations.dns, and user records appended to
 # /etc/topgen/hosts.custom ("IP name..." per line, like /etc/hosts).
-# Mail domains come from /etc/topgen/vmail.cfg and the mirrored sites.
+# Mail domains come from /etc/topgen/vmail.cfg and the build's mail_sites.
 # TOPGEN_VARLIB and TOPGEN_ETC exist for tests.
 
 PATH=$PATH:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -62,16 +62,14 @@ custom_records() {
       }' - "$E/hosts.custom"
 }
 
-# Print the mail domains: vmail.cfg's lines, then mail.<domain> at the site's
-# address for each mirrored site whose domain and address are still free.
+# Print the mail domains: vmail.cfg's lines, then the build's mail_sites
+# (vmail.sites) whose domain vmail.cfg does not set.
 vmail_cfg() {
   awk '
     /^[ \t]*(#|$)/ { next }
-    FILENAME == ARGV[1] { dom[substr($1, index($1, ".") + 1)]; ip[$2]; print; next }
-    $2 == "topgen.info" { next }
-    { n = split($2, l, "."); d = l[n - 1] "." l[n] }
-    !(d in dom) && !($1 in ip) { dom[d]; ip[$1]; print "mail." d, $1 }
-  ' "$E/vmail.cfg" "$V/etc/hosts.nginx"
+    { domain = substr($1, index($1, ".") + 1) }
+    !(domain in seen) { seen[domain]; print }
+  ' "$E/vmail.cfg" "$V/etc/vmail.sites"
 }
 
 mail() {
