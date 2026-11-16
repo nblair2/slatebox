@@ -13,8 +13,8 @@
   vars:
     core_version: 9.2.1
     core_deb_sha256: 1ae0f42acaa6f4c8e47b3d3c90187cb857d3906e581d421886e28ab497d24a45
-    uv_version: 0.11.32
-    uv_sha256: aab924fd522efd06f1c5f3b93a243864fc453132c94b2dc49f1371b528a4b967
+    uv_version: 0.13.8
+    uv_sha256: 5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91
     goscrape_version: v0.3.0
     goscrape_sha256: 599c6fc834b8fa7f8ec5b089f4943bd5e6b5d8def188a13349d011f867dda088
     # static files, each at its installed path

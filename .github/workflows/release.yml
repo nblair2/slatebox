@@ -1,7 +1,7 @@
 name: release
 on:
   push:
-    branches: ['**']
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +11,7 @@ concurrency:
 jobs:
   release:
     if: github.ref_name == github.event.repository.default_branch
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: write
@@ -22,10 +22,10 @@ jobs:
       RELEASAURUS_REPO: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - name: Publish merged release
-        uses: robgonnella/releasaurus/action@v1.4.0-rc.2
+        uses: robgonnella/releasaurus/action@b3d380e5edd8ef3541a0be50c3c2921be71f0fdf # v1.4.0-rc.2
         with:
           command: release
       - name: Prepare the next release PR
-        uses: robgonnella/releasaurus/action@v1.4.0-rc.2
+        uses: robgonnella/releasaurus/action@b3d380e5edd8ef3541a0be50c3c2921be71f0fdf # v1.4.0-rc.2
         with:
           command: release-pr
