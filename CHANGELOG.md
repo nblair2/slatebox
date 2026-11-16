@@ -1,3 +1,9 @@
+# [2026.11.16.2](https://github.com/nblair2/slatebox/compare/v2026.11.16.1...v2026.11.16.2) - 2026-11-16
+
+### 🚀 Features
+
+- _(vmail)_ mail servers from the mail_sites variable [_(89b3baef)_](https://github.com/nblair2/slatebox/commit/89b3baef11d9ad45ce2ee5425e1dfb52a32109fe)
+
 # [2026.11.16.1](https://github.com/nblair2/slatebox/compare/v2026.11.15.1...v2026.11.16.1) - 2026-11-16
 
 ### 🚀 Features
