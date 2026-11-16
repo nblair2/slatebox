@@ -94,6 +94,17 @@ variable "scrape_site_jobs" {
   }
 }
 
+variable "mail_sites" {
+  type        = list(string)
+  default     = ["mail.cmu.edu"]
+  description = "mail servers; each serves the domain after its first label, at that domain's real mail address"
+
+  validation {
+    condition     = length(var.mail_sites) > 0 && alltrue([for s in var.mail_sites : can(regex("^[a-z0-9-]+(\\.[a-z0-9-]+){2,}$", s))])
+    error_message = "Each mail_sites entry must be a server name within a domain, like mail.cmu.edu."
+  }
+}
+
 variable "overlay_dir" {
   type        = string
   default     = ""

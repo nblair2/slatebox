@@ -3,6 +3,11 @@
   ansible.builtin.command: topgen-ca.sh init
   changed_when: true
 
+- name: Look up the mail servers' addresses {{ mail_sites }}
+  ansible.builtin.shell:
+    cmd: topgen-mail-sites.sh {{ mail_sites | map('quote') | join(' ') }} > {{ topgen_varlib }}/etc/vmail.sites
+  changed_when: true
+
 - name: Mirror the web sites and print the outcome
   block:
     - name: Mirror the web sites into topgen's vhosts {{ scrape_sites }}

@@ -1,6 +1,6 @@
 """Mail: accounts written to /etc/topgen/vmail.cfg log in and exchange mail after
-`topgen-boot reload-mail`; port 25 takes mail for a mirrored site's domain from
-anyone (into the catch-all mailbox) but relays nothing."""
+`topgen-boot reload-mail`, next to the build's mail_sites; port 25 takes mail for
+a mail domain from anyone (into the catch-all mailbox) but relays nothing."""
 
 import shlex
 import time
@@ -59,7 +59,7 @@ def eventually(check, tries=10):
 
 @pytest.fixture(scope="module", autouse=True)
 def accounts(vm):
-    """vmail.cfg holds only ACCOUNTS while this module runs."""
+    """vmail.cfg holds ACCOUNTS while this module runs."""
     lines = [f"{s} {ip} {u}:{p}" for s, ip, u, p in ACCOUNTS]
     assert vm.sh(f"cp -a {CFG} {BAK} && printf '%s\\n' {shlex.join(lines)} > {CFG}").ok
     try:
@@ -71,11 +71,9 @@ def accounts(vm):
 
 
 @pytest.fixture(scope="module")
-def site(vhost, mail_domains):
-    """(server, ip) of the vhost's generated mail domain."""
-    server = "mail." + ".".join(vhost[0].split(".")[-2:])
-    ip = dict(mail_domains).get(server)
-    assert ip, f"no {server} among {mail_domains}"
+def site(vm):
+    """(server, ip) of the build's first mail_sites server."""
+    server, ip = vm.sh("head -n 1 /var/lib/topgen/etc/vmail.sites").out.split()[:2]
     return server, ip
 
 
@@ -84,6 +82,12 @@ def test_imaps_login(vm, account):
     """The account logs in over IMAPS (certificate from the TopGen CA)."""
     _, ip, user, password = account
     r = vm.charlie(imap(ip, user, password))
+    assert r.ok, r.out
+
+
+def test_site_login(vm, site):
+    """A mail_sites server has the default account."""
+    r = vm.charlie(imap(site[1], "administrator", "password"))
     assert r.ok, r.out
 
 
@@ -104,7 +108,7 @@ def test_mail_crosses_domains(vm):
 
 
 def test_site_receives_on_port_25(vm, site):
-    """Unauthenticated mail to a mirrored site's domain lands in the catch-all DFLT."""
+    """Unauthenticated mail to an unknown user of a mail domain lands in the catch-all DFLT."""
     server, ip = site
     subject = f"slatebox-test-{time.time_ns()}"
     r = vm.charlie(smtp(ip, 25, "someone@example.net", f"nobody@{server.split('.', 1)[1]}", subject))
@@ -116,5 +120,5 @@ def test_site_receives_on_port_25(vm, site):
 
 def test_port_25_does_not_relay(vm, site):
     """Unauthenticated mail to an outside domain is refused."""
-    r = vm.charlie(smtp(site[1], 25, "someone@example.net", "victim@example.org", "slatebox-test-relay"))
+    r = vm.charlie(smtp(site[1], 25, "someone@example.net", "victim@example.invalid", "slatebox-test-relay"))
     assert not r.ok and "RCPT" in r.out, r.out
