@@ -1,3 +1,13 @@
+# [2026.11.16.1](https://github.com/nblair2/slatebox/compare/v2026.11.15.1...v2026.11.16.1) - 2026-11-16
+
+### 🚀 Features
+
+- _(vmail)_ email boxes and MX records from variable [_(bbc7c14c)_](https://github.com/nblair2/slatebox/commit/bbc7c14c2cb3d2273770cf6b2d015d227c771d18)
+
+### 🧹 Chore
+
+- _(ci)_ update dependencies and rules [_(e127d592)_](https://github.com/nblair2/slatebox/commit/e127d59272a872dd1c8a820348810e81dbffdb73)
+
 # [2026.11.15.1](https://github.com/nblair2/slatebox/compare/v2026.11.14.1...v2026.11.15.1) - 2026-11-15
 
 ### ⚡ Performance
