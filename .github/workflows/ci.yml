@@ -1,18 +1,18 @@
-name: build
+name: ci
 # Branches are filtered in the triggers
 # workflow_dispatch builds any branch on demand
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'LICENSE.*', 'docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
+    paths-ignore: ['**.md', 'LICENSE.*', 'docs/**', 'mkdocs.yml', '.github/workflows/docs.yml', '.github/workflows/pages.yml']
   pull_request:
     branches: [main]
-    paths-ignore: ['**.md', 'LICENSE.*', 'docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
+    paths-ignore: ['**.md', 'LICENSE.*', 'docs/**', 'mkdocs.yml', '.github/workflows/docs.yml', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 # A new commit on a pull request cancels an in progress run. pushes to main queue
 concurrency:
-  group: build-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

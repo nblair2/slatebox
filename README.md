@@ -1,7 +1,7 @@
 # slatebox
 
 [![Release](https://img.shields.io/github/v/release/nblair2/slatebox?style=flat-square)](https://github.com/nblair2/slatebox/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/nblair2/slatebox/build.yml?branch=main&style=flat-square&label=build)](https://github.com/nblair2/slatebox/actions/workflows/build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nblair2/slatebox/ci.yml?branch=main&style=flat-square&label=build)](https://github.com/nblair2/slatebox/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-nblair2.github.io-526CFE?style=flat-square&logo=materialformkdocs&logoColor=white)](https://nblair2.github.io/slatebox/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![Packer](https://img.shields.io/badge/built%20with-Packer-02A8EF?logo=packer&logoColor=white)](https://developer.hashicorp.com/packer)

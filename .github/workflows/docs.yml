@@ -1,9 +1,6 @@
 name: docs
-# Pull requests build the site; pushes to main also publish it to GitHub Pages
+# Checks that the site builds; pages.yml publishes it
 on:
-  push:
-    branches: [main]
-    paths: ['docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
   pull_request:
     branches: [main]
     paths: ['docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
@@ -11,7 +8,7 @@ on:
 
 concurrency:
   group: docs-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 env:
   MKDOCS_MATERIAL_VERSION: 9.8.1
@@ -27,22 +24,3 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: uvx --with "mkdocs-material==${MKDOCS_MATERIAL_VERSION}" mkdocs build --strict
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        if: github.event_name != 'pull_request'
-        with:
-          path: site/
-
-  deploy:
-    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
-    needs: build
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

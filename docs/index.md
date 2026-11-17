@@ -1,7 +1,7 @@
 # slatebox
 
 [![Release](https://img.shields.io/github/v/release/nblair2/slatebox?style=flat-square)](https://github.com/nblair2/slatebox/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/nblair2/slatebox/build.yml?branch=main&style=flat-square&label=build)](https://github.com/nblair2/slatebox/actions/workflows/build.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/nblair2/slatebox/ci.yml?branch=main&style=flat-square&label=build)](https://github.com/nblair2/slatebox/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](https://github.com/nblair2/slatebox/blob/main/LICENSE)
 [![Packer](https://img.shields.io/badge/built%20with-Packer-02A8EF?logo=packer&logoColor=white)](https://developer.hashicorp.com/packer)
 [![Ubuntu](https://img.shields.io/badge/ubuntu-26.04-E95420?style=flat-square&logo=ubuntu&logoColor=white)](https://ubuntu.com/server)
