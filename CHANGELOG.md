@@ -1,3 +1,9 @@
+# [2026.11.17.2](https://github.com/nblair2/slatebox/compare/v2026.11.17.1...v2026.11.17.2) - 2026-11-17
+
+### 🚀 Features
+
+- _(make)_ read the check lists from the Packer variables [_(2db6bac4)_](https://github.com/nblair2/slatebox/commit/2db6bac4c0dcb3448bc15f75913e207f3b702513)
+
 # [2026.11.17.1](https://github.com/nblair2/slatebox/compare/v2026.11.16.2...v2026.11.17.1) - 2026-11-17
 
 ### 🚀 Features
