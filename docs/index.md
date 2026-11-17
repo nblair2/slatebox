@@ -9,7 +9,7 @@
 > "Have you ever had a dream, Neo, that you were so sure was real? … How would you know the difference between the dream world and the real world?”
 > - Morpheus, *The Matrix*
 
-**`slatebox` is an internet simulator in a VM.** It is a "clean slate" implementation of CMU-SEI's excellent [`greybox`](https://github.com/cmu-sei/greybox) tool.
+**`slatebox` is an internet simulator.** It is a "clean slate" implementation of CMU-SEI's excellent [`greybox`](https://github.com/cmu-sei/greybox) tool.
 
 ![slatebox](assets/slatebox.jpg)
 
