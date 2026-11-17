@@ -1,3 +1,23 @@
+# [2026.11.17.1](https://github.com/nblair2/slatebox/compare/v2026.11.16.2...v2026.11.17.1) - 2026-11-17
+
+### 🚀 Features
+
+- _(net)_ use the first NIC, eth0 [_(b43f4cb3)_](https://github.com/nblair2/slatebox/commit/b43f4cb30eac2898f792011f0f2a01b87bba8fe7)
+
+- _(make)_ add check, watch and clean targets [_(b3e1831d)_](https://github.com/nblair2/slatebox/commit/b3e1831d621ff6c7419da782d5715c7dcd59ee38)
+
+- _(build)_ build in a container [_(ae6cf6e0)_](https://github.com/nblair2/slatebox/commit/ae6cf6e07936d75e68bd46d7546bf9759ce5afef)
+
+### 📚 Documentation
+
+- update tag line [_(2404fb6c)_](https://github.com/nblair2/slatebox/commit/2404fb6cdcb0c0d8c2b58d493a1b563a36557f9e)
+
+- add a documentation site [_(baf01ecb)_](https://github.com/nblair2/slatebox/commit/baf01ecbd6fd406a9e1b9bb45520b95db543d946)
+
+### 🧹 Chore
+
+- _(ci)_ fix workflows [_(a33584ca)_](https://github.com/nblair2/slatebox/commit/a33584ca7b2bcba7a7c0e6564d97002856314423)
+
 # [2026.11.16.2](https://github.com/nblair2/slatebox/compare/v2026.11.16.1...v2026.11.16.2) - 2026-11-16
 
 ### 🚀 Features
