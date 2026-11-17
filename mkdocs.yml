@@ -1,0 +1,31 @@
+site_name: slatebox
+site_description: Internet simulator in a VM
+site_url: https://nblair2.github.io/slatebox/
+repo_url: https://github.com/nblair2/slatebox
+repo_name: nblair2/slatebox
+
+theme:
+  name: material
+  logo: assets/slatebox.jpg
+  favicon: assets/slatebox.jpg
+  palette:
+    scheme: slate
+    primary: black
+    accent: deep purple
+  features:
+    - content.code.copy
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Build: build.md
+  - Services: services.md

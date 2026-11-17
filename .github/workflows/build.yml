@@ -4,10 +4,10 @@ name: build
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'LICENSE.*']
+    paths-ignore: ['**.md', 'LICENSE.*', 'docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
   pull_request:
     branches: [main]
-    paths-ignore: ['**.md', 'LICENSE.*']
+    paths-ignore: ['**.md', 'LICENSE.*', 'docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
   workflow_dispatch:
 
 # A new commit on a pull request cancels an in progress run. pushes to main queue

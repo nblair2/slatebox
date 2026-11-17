@@ -5,3 +5,4 @@ test-output/
 .venv/
 __pycache__/
 .packer.d/
+site/
