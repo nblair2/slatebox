@@ -77,6 +77,12 @@ name = "shellcheck -S error (upstream topgen-mkdns.sh, topgen-vmail.sh)"
 args = ["--severity=error"]
 files = '^files/usr/local/sbin/topgen-(mkdns|vmail)\.sh$'
 
+# Dockerfile
+[[repos]]
+repo = "https://github.com/AleksaC/hadolint-py"
+rev = "v2.15.1"
+hooks = [{ id = "hadolint" }]
+
 # Python
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"

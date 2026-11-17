@@ -1,0 +1,5 @@
+ignored:
+  # apk packages follow the base image
+  - DL3018
+  # certs is a build context, not a stage
+  - DL3022

@@ -1,43 +1,68 @@
-.DEFAULT_GOAL := help
-
-PACKER ?= packer
-PREK ?= prek
-UV ?= uv
-PYTHON ?= python3
-VENV ?= .venv
-IMAGE ?= build/image/slatebox.qc2
 PACKER_ARGS ?=
+DOCKER_ARGS ?=
+CA_CERTS ?= certs
+REGISTRY ?= docker.io
+IMAGE ?= output/slatebox.qc2
 TEST_ARGS ?=
 
-.PHONY: help init build install-dev test lint
+.PHONY: help install-dev init lint builder build test
 
 help:
-	@printf '%s\n' \
-		'lint         Run all prek checks, including Packer validation' \
-		'init         Install Packer plugins' \
-		'build        Build the qcow2 image' \
-		'test         Boot and test IMAGE (extra options: TEST_ARGS)' \
-		'install-dev  Install build and test tools (apt on Ubuntu), test dependencies and Git hooks'
+	@echo '  install-dev     Install the test and lint tools and the Git hooks (apt on Ubuntu)'
+	@echo '  init            Install the Packer plugins on the host, for lint'
+	@echo '  lint            Run all prek checks (needs Packer)'
+	@echo '  builder         Build the build container and install the Packer plugins'
+	@echo '    CA_CERTS        Directory or Git URL of extra CA certificates (default: certs/)'
+	@echo '    REGISTRY        Registry to pull the hashicorp/packer image from'
+	@echo '  build           Build output/slatebox.qc2 in the build container (needs /dev/kvm)'
+	@echo '    PACKER_ARGS     Packer arguments, such as -var-file=site.pkrvars.hcl'
+	@echo '    DOCKER_ARGS     Arguments for the build container, such as --volume'
+	@echo '  test            Boot an image and test it'
+	@echo '    IMAGE           Image to test'
+	@echo '    TEST_ARGS       pytest arguments'
 
-lint:
-	$(PREK) run --all-files
+install-dev:
+	sudo apt-get update
+	sudo apt-get install -y qemu-system-x86 sshpass busybox dnsutils libnss3-tools traceroute
+	uv tool install prek
+	python3 -m venv .venv
+	.venv/bin/python -m pip install -r tests/requirements.txt
+	.venv/bin/python -m playwright install --with-deps --only-shell chromium
+	prek install
 
 init:
-	$(PACKER) init .
+	packer init .
 
-build: init
-	$(PACKER) build $(PACKER_ARGS) .
+lint:
+	prek run --all-files
+
+builder:
+	docker build \
+		--build-arg REGISTRY=$(REGISTRY) \
+		--build-context certs=$(CA_CERTS) \
+		--tag slatebox-builder \
+		- < Dockerfile
+	docker run --rm \
+		--volume $(CURDIR):$(CURDIR) \
+		--workdir $(CURDIR) \
+		--env PACKER_PLUGIN_PATH=$(CURDIR)/.packer.d/plugins \
+		--env PACKER_GITHUB_API_TOKEN \
+		slatebox-builder packer init .
+
+# The build container runs as root, so the files it writes are owned by root
+build: builder
+	docker run --rm --tty --init \
+		--name slatebox-build \
+		--network host \
+		--device /dev/kvm \
+		--volume $(CURDIR):$(CURDIR) \
+		--workdir $(CURDIR) \
+		--env PACKER_PLUGIN_PATH=$(CURDIR)/.packer.d/plugins \
+		--env PACKER_CACHE_DIR=$(CURDIR)/.packer.d/cache \
+		--env PACKER_LOG \
+		--env PACKER_LOG_PATH \
+		$(DOCKER_ARGS) \
+		slatebox-builder packer build $(PACKER_ARGS) .
 
 test:
-	"$(VENV)/bin/python" -m pytest tests --image "$(IMAGE)" $(TEST_ARGS)
-
-install-dev: init
-	sudo apt-get update
-	sudo apt-get install -y qemu-system-x86 qemu-utils xorriso sshpass busybox dnsutils libnss3-tools traceroute
-	$(UV) tool install prek
-	$(UV) tool install 'ansible-core>=2.20'
-	ansible-galaxy collection install ansible.posix
-	$(PYTHON) -m venv "$(VENV)"
-	"$(VENV)/bin/python" -m pip install -r tests/requirements.txt
-	"$(VENV)/bin/python" -m playwright install --with-deps --only-shell chromium
-	$(PREK) install
+	.venv/bin/python -m pytest tests --image $(IMAGE) $(TEST_ARGS)
