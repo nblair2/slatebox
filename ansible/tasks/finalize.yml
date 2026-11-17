@@ -20,29 +20,29 @@
     - LICENSE.topgen
     - README.md
 
-# Network: the host's first NIC gets DHCP; the external NIC is left to
-# greybox's RJ45 node.
+# Network: the first NIC (eth0) is left to greybox's RJ45 node. Every other NIC
+# gets DHCP.
 - name: Remove cloud-init's netplan configuration
   # it pins the build VM's NIC by MAC address, which differs on every VM
   ansible.builtin.file:
     path: /etc/netplan/50-cloud-init.yaml
     state: absent
 
-- name: Keep systemd-networkd off the external NIC
-  ansible.builtin.template:
-    src: 10-greybox-ext.network.j2
-    dest: /etc/systemd/network/10-greybox-ext.network
-    owner: root
-    group: root
-    mode: "0644"
-
-- name: Configure the other NICs by DHCP, matched by name
+- name: Install the network configuration
   ansible.builtin.copy:
-    src: "{{ files_dir }}/etc/systemd/network/20-slatebox.network"
-    dest: /etc/systemd/network/20-slatebox.network
+    src: "{{ files_dir }}/etc/{{ item }}"
+    dest: /etc/{{ item }}
     owner: root
     group: root
     mode: "0644"
+  loop:
+    - default/grub.d/60-slatebox.cfg
+    - systemd/network/10-greybox-ext.network
+    - systemd/network/20-slatebox.network
+
+- name: Apply the kernel command line (update-grub)
+  ansible.builtin.command: update-grub
+  changed_when: true
 
 # Image size
 - name: Remove downloaded packages (apt-get clean)

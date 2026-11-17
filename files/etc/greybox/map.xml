@@ -4,7 +4,7 @@
     <network id="300" name="TopGenLan" type="SWITCH">
       <position x="480" y="360" />
     </network>
-    <network id="410" name="@EXT_IFACE@" type="RJ45">
+    <network id="410" name="eth0" type="RJ45">
       <position x="350" y="100" />
     </network>
   </networks>

@@ -1,15 +1,10 @@
 #!/opt/core/venv/bin/python
 """Run the greybox map as a CORE session.
 
-@EXT_IFACE@ in the map (the RJ45 node) becomes $GREYBOX_EXT_IFACE; a dummy
-interface stands in for it when that NIC is missing.
-
 usage: greybox-ctl start [map.xml] | stop | status | exec <node-name> <cmd...>
 """
 
-import os
 import shlex
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -20,8 +15,6 @@ from core.api.grpc.wrappers import SessionState
 
 DEFAULT_MAP = "/etc/greybox/map.xml"
 SID_FILE = Path("/run/greybox.sid")
-RUN_MAP = Path("/run/greybox.xml")  # effective map, kept for debugging
-EXT = os.environ.get("GREYBOX_EXT_IFACE", "ens4")
 
 
 def connect(timeout=600):
@@ -49,16 +42,8 @@ def session(client):
 
 
 def start(path=DEFAULT_MAP):
-    xml = Path(path).read_text()
-    if "@EXT_IFACE@" in xml:
-        xml = xml.replace("@EXT_IFACE@", EXT)
-        # CORE's RJ45 node fails the whole session if its interface is absent
-        if not Path("/sys/class/net", EXT).exists():
-            print(f"greybox: {EXT} not present, using a dummy interface", file=sys.stderr)
-            subprocess.run(["ip", "link", "add", EXT, "type", "dummy"], check=True)
-    RUN_MAP.write_text(xml)
     client = connect()
-    _, sid = client.open_xml(RUN_MAP, start=True)
+    _, sid = client.open_xml(Path(path), start=True)
     SID_FILE.write_text(f"{sid}\n")
     # CORE reaches RUNTIME even if some node services failed; those are only logged.
     print(f"greybox: session {sid} {client.get_session(sid).state.name}")

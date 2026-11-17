@@ -1,7 +1,7 @@
 ---
 # Turns the Ubuntu 26.04 cloud image into slatebox. Packer runs this playbook
 # as root over its SSH connection to the build VM (slatebox.pkr.hcl) and passes
-# ext_iface, scrape_sites, scrape_depth, scrape_timeout, scrape_jobs,
+# scrape_sites, scrape_depth, scrape_timeout, scrape_jobs,
 # scrape_site_jobs, mail_sites and overlay_dir as extra vars.
 # The task files run in this order; cheap failures come before the long scrape.
 - name: Provision slatebox
@@ -25,7 +25,6 @@
     - name: Check the variables passed by Packer
       ansible.builtin.assert:
         that:
-          - ext_iface is string and ext_iface | length > 0
           - scrape_sites is sequence and scrape_sites is not string and scrape_sites | length > 0
           - scrape_depth | int > 0
           - scrape_timeout is string and scrape_timeout | length > 0

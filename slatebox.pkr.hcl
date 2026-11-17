@@ -54,7 +54,6 @@ build {
     extra_arguments = [
       "--verbose",
       "--extra-vars", jsonencode({
-        ext_iface        = var.ext_iface
         scrape_sites     = var.scrape_sites
         scrape_depth     = var.scrape_depth
         scrape_timeout   = var.scrape_timeout

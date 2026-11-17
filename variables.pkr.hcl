@@ -32,12 +32,6 @@ variable "admin_password" {
   description = "root's password (console and SSH)"
 }
 
-variable "ext_iface" {
-  type        = string
-  default     = "ens4"
-  description = "host NIC bridged into the map's RJ45 node (12.0.0.0/24)"
-}
-
 variable "overlay_dir" {
   type        = string
   default     = ""

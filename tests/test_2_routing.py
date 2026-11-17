@@ -31,7 +31,7 @@ def test_sim_client_traceroute_crosses_routers(vm, vhost):
 
 
 def test_external_dhcp_lease_in_pool(ext):
-    """An external machine on ens4 gets a lease in 12.0.0.100-250 from iap1-rtr."""
+    """An external machine on eth0 gets a lease in 12.0.0.100-250 from iap1-rtr."""
     ip = ipaddress.ip_address(ext.ip)
     assert ipaddress.ip_address("12.0.0.100") <= ip <= ipaddress.ip_address("12.0.0.250"), ext.lease_log
 

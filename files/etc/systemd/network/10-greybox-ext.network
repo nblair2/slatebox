@@ -1,0 +1,6 @@
+# The first NIC belongs to greybox's RJ45 node
+[Match]
+Name=eth0
+
+[Link]
+Unmanaged=yes

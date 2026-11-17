@@ -6,7 +6,6 @@ After=core-daemon.service network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-EnvironmentFile=-/etc/default/greybox
 ExecStart=/usr/local/sbin/greybox-ctl start
 ExecStop=/usr/local/sbin/greybox-ctl stop
 # 69 routers take minutes to boot
