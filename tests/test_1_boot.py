@@ -43,12 +43,6 @@ def test_sim_in_runtime(vm):
     assert r.ok and "RUNTIME" in r.out, r.out
 
 
-def test_ext_nic_is_real(vm):
-    """ens4 is the VM's second NIC, not the dummy greybox substitutes when it is missing."""
-    r = vm.sh("test -e /sys/class/net/ens4/device")
-    assert r.ok, vm.sh("ip -d link show ens4").out
-
-
 @pytest.mark.parametrize("daemon", ["named", "nginx", "master", "dovecot"])
 def test_topgen_daemon_running(vm, daemon):
     """topgen.info runs DNS (named), web (nginx) and mail (postfix master, dovecot)."""

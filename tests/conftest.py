@@ -1,10 +1,10 @@
 """Boot (or attach to) a slatebox VM once per session and share helpers.
 
     pytest tests --image output/slatebox.qc2    boot a throwaway snapshot
-    pytest tests --image IMG --keep                    ... and leave it running
-    pytest tests --attach                              reuse a VM left by --keep
+    pytest tests --image IMG --keep             ... and leave it running
+    pytest tests --attach                       reuse a VM left by --keep
 
-The VM's second NIC (ens4, the sim's RJ45 link to iap1-rtr.disa.mil) is the
+The VM's eth0 (the sim's RJ45 link to iap1-rtr.disa.mil) is the
 tap device --tap on this machine. The `ext` fixture moves it into the network
 namespace "ext" and makes it an external client of the sim (DHCP lease,
 default route via 12.0.0.41, resolver 8.8.8.8).
@@ -39,7 +39,7 @@ def pytest_addoption(parser):
     add("--attach", action="store_true", help="use an already running VM instead of booting one")
     add("--keep", action="store_true", help="leave the booted VM running (for --attach later)")
     add("--ssh-port", type=int, default=2222, help="host port forwarded to the VM's ssh")
-    add("--tap", default="tap0", help="tap device connected to the VM's ens4")
+    add("--tap", default="tap0", help="tap device connected to the VM's eth0")
     add("--password", default="slatebox", help="root's password in the VM (admin_password)")
     add("--vhost", default="www.cmu.edu", help="mirrored site to test")
     add("--expect", default="Carnegie Mellon", help="text on the vhost's home page")
@@ -98,7 +98,7 @@ class VM:
         return self.node("CharlieUser1", cmd, timeout)
 
     def boot(self, image):
-        """Start qemu: user-net NIC (ssh on --ssh-port) and --tap as ens4 (PCI slot 4)."""
+        """Start qemu: --tap as eth0 and the user-net NIC (ssh on --ssh-port) as eth1."""
         user = getpass.getuser()
         sh(f"sudo ip link del {self.tap}")  # left over from an interrupted run
         r = sh(f"sudo ip tuntap add dev {self.tap} mode tap user {user} && sudo ip link set {self.tap} up")
@@ -112,10 +112,10 @@ class VM:
             "-smp", str(os.cpu_count()), "-m", str(mem), "-snapshot", "-display", "none",
             "-serial", f"file:{self.out}/serial.log",
             "-drive", f"file={image},if=none,id=d0", "-device", "virtio-blk-pci,drive=d0,addr=0x5",
-            "-netdev", f"user,id=mgmt,hostfwd=tcp:127.0.0.1:{self.port}-:22",
-            "-device", "virtio-net-pci,netdev=mgmt,addr=0x3",
             "-netdev", f"tap,id=ext,ifname={self.tap},script=no,downscript=no",
-            "-device", "virtio-net-pci,netdev=ext,addr=0x4",
+            "-device", "virtio-net-pci,netdev=ext,addr=0x3",
+            "-netdev", f"user,id=mgmt,hostfwd=tcp:127.0.0.1:{self.port}-:22",
+            "-device", "virtio-net-pci,netdev=mgmt,addr=0x4",
         ], stdout=qemu_log, stderr=subprocess.STDOUT, start_new_session=True)  # survives Ctrl-C, for --keep
         # fmt: on
         time.sleep(3)
@@ -213,7 +213,7 @@ set -x
 systemctl --no-pager status greybox core-daemon
 journalctl -b --no-pager -u core-daemon -u greybox | tail -300
 journalctl -k --no-pager | grep -i denied | grep -Ev "$BENIGN" | tail -50
-greybox-ctl status; cat /etc/default/greybox; ip -br link | head -20; ip -s link show ens4
+greybox-ctl status; ip -br link | head -20; ip -s link show eth0
 cat /var/lib/topgen/etc/hosts.nginx
 greybox-ctl exec topgen.info ps -ef
 greybox-ctl exec topgen.info tail -n 50 /var/log/dovecot.log /var/log/nginx/error.log

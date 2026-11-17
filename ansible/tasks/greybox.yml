@@ -78,14 +78,6 @@
     group: root
     mode: "0644"
 
-- name: Give the map's RJ45 node the external NIC (/etc/default/greybox)
-  ansible.builtin.template:
-    src: greybox.default.j2
-    dest: /etc/default/greybox
-    owner: root
-    group: root
-    mode: "0644"
-
 - name: Reload systemd's unit files
   ansible.builtin.systemd_service:
     daemon_reload: true

@@ -44,18 +44,6 @@ repo = "builtin"
 id = "check-xml"
 
 [[repos.hooks]]
-id = "require-pattern"
-name = "map.xml has an @EXT_IFACE@ placeholder"
-args = ["@EXT_IFACE@"]
-files = '^files/etc/greybox/map\.xml$'
-
-[[repos.hooks]]
-id = "deny-pattern"
-name = "map.xml has only one @EXT_IFACE@ placeholder"
-args = ["--multiline", "@EXT_IFACE@.*@EXT_IFACE@"]
-files = '^files/etc/greybox/map\.xml$'
-
-[[repos.hooks]]
 id = "deny-pattern"
 name = "map.xml has no tabs"
 args = ['\t']
