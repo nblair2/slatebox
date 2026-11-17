@@ -49,9 +49,6 @@ jobs:
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
           sudo udevadm settle
           [ -w /dev/kvm ] || { echo "::error::/dev/kvm is not writable; this runner has no usable KVM"; ls -l /dev/kvm; exit 1; }
-      - uses: hashicorp/setup-packer@ce93c3c08a6c2ff2275bf4b54ff0d9a75f6c9789 # v3.4.0
-        with:
-          version: ${{ env.PACKER_VERSION }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: make install-dev
       # cpus: as many as the runner has
@@ -69,7 +66,7 @@ jobs:
         if: success()
         with:
           name: slatebox-qc2
-          path: build/image/slatebox.qc2
+          path: output/slatebox.qc2
           retention-days: 3
           compression-level: 0
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

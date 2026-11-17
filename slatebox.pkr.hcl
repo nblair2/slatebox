@@ -23,7 +23,7 @@ source "qemu" "slatebox" {
   cpus             = var.cpus
   memory           = var.memory
   headless         = true
-  output_directory = var.output_dir
+  output_directory = "output"
   vm_name          = "slatebox.qc2"
   # full boot and cloud-init console, kept for CI
   qemuargs = [["-serial", "file:serial-build.log"]]
