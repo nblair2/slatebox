@@ -5,7 +5,7 @@
 #   * CORE's Python 3.12
 #   * uv
 #   * goscrape
-# * .github/workflows/build.yml
+# * .github/workflows/ci.yml
 #   * PACKER_VERSION
 version: 2
 updates:
