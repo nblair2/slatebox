@@ -7,7 +7,7 @@ MAIL_SITES ?=
 IMAGE ?= output/slatebox.qc2
 TEST_ARGS ?=
 
-.PHONY: help install-dev init lint check-sites check-mail builder build watch test clean
+.PHONY: help install-dev init lint check-sites check-mail builder build watch test docs clean
 
 help:
 	@echo '  install-dev     Install the test and lint tools and the Git hooks (apt on Ubuntu)'
@@ -27,6 +27,7 @@ help:
 	@echo '  test            Boot an image and test it'
 	@echo '    IMAGE           Image to test'
 	@echo '    TEST_ARGS       pytest arguments'
+	@echo '  docs            Build the documentation site into site/'
 	@echo '  clean           Stop a running build and delete what the targets made'
 
 install-dev:
@@ -84,6 +85,9 @@ watch:
 test:
 	.venv/bin/python -m pytest tests --image $(IMAGE) $(TEST_ARGS)
 
+docs:
+	uv tool run --with mkdocs-material mkdocs build --strict
+
 # The build container deletes the build output, which root owns
 clean:
 	-docker rm --force slatebox-build
@@ -91,4 +95,4 @@ clean:
 		--volume $(CURDIR):$(CURDIR) \
 		--workdir $(CURDIR) \
 		slatebox-builder rm -rf output serial-build.log packer.log
-	rm -rf test-output tests/__pycache__ .ruff_cache
+	rm -rf site test-output tests/__pycache__ .ruff_cache

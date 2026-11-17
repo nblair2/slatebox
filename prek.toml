@@ -22,7 +22,7 @@ repo = "builtin"
 hooks = [
   { id = "check-merge-conflict" },
   { id = "check-case-conflict" },
-  { id = "check-added-large-files", args = ["--maxkb=256", "--enforce-all"], exclude = '^\.media/' },
+  { id = "check-added-large-files", args = ["--maxkb=256", "--enforce-all"], exclude = '^docs/assets/' },
   { id = "check-executables-have-shebangs" },
   { id = "check-shebang-scripts-are-executable" },
   { id = "detect-private-key" },
