@@ -57,8 +57,8 @@ Some targets take variables.
 
 | Target | Variable | Purpose |
 |---|---|---|
-| `check-sites` | `SCRAPE_SITES` | URLs of the sites |
-| `check-mail` | `MAIL_SITES` | Names of the mail servers |
+| `check-sites` | `SCRAPE_SITES` | URLs of the sites. Defaults to `scrape_sites`. |
+| `check-mail` | `MAIL_SITES` | Names of the mail servers. Defaults to `mail_sites`. |
 | `builder` | `CA_CERTS` | Directory or Git URL of extra CA certificates for the build container. Defaults to `certs/`, which is empty. |
 | `builder` | `REGISTRY` | Registry to pull the `hashicorp/packer` image from. Defaults to Docker Hub. |
 | `build` | `PACKER_ARGS` | Packer arguments, such as `-var-file=site.pkrvars.hcl` or `-var cpus=16` |
@@ -71,5 +71,5 @@ The build container sees only this directory. Mount anything outside it with `DO
 Some sites block scrapers. Check yours before a long build.
 
 ```sh
-make check-sites SCRAPE_SITES="https://www.example.com https://www.example.org"
+make check-sites check-mail PACKER_ARGS=-var-file=site.pkrvars.hcl
 ```
