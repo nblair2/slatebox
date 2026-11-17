@@ -7,6 +7,13 @@ MAIL_SITES ?=
 IMAGE ?= output/slatebox.qc2
 TEST_ARGS ?=
 
+# Prints a list variable as Packer resolves it from the defaults and PACKER_ARGS
+packer_list = echo 'join(" ", var.$(1))' | docker run --rm --interactive \
+	--volume $(CURDIR):$(CURDIR):ro \
+	--workdir $(CURDIR) \
+	$(DOCKER_ARGS) \
+	slatebox-builder packer console $(PACKER_ARGS) .
+
 .PHONY: help install-dev init lint check-sites check-mail builder build watch test docs clean
 
 help:
@@ -14,9 +21,9 @@ help:
 	@echo '  init            Install the Packer plugins on the host, for lint'
 	@echo '  lint            Run all prek checks (needs Packer)'
 	@echo '  check-sites     Check that each site can be mirrored from here'
-	@echo '    SCRAPE_SITES    URLs of the sites'
+	@echo '    SCRAPE_SITES    URLs of the sites (default: scrape_sites, as the build resolves it)'
 	@echo '  check-mail      Check that each mail server gets its own address'
-	@echo '    MAIL_SITES      Names of the mail servers'
+	@echo '    MAIL_SITES      Names of the mail servers (default: mail_sites, as the build resolves it)'
 	@echo '  builder         Build the build container and install the Packer plugins'
 	@echo '    CA_CERTS        Directory or Git URL of extra CA certificates (default: certs/)'
 	@echo '    REGISTRY        Registry to pull the hashicorp/packer image from'
@@ -45,11 +52,11 @@ init:
 lint:
 	prek run --all-files
 
-check-sites:
-	scripts/check-sites.sh $(SCRAPE_SITES)
+check-sites: $(if $(SCRAPE_SITES),,builder)
+	scripts/check-sites.sh $(or $(SCRAPE_SITES),$$($(call packer_list,scrape_sites)))
 
-check-mail:
-	files/usr/local/sbin/topgen-mail-sites.sh $(MAIL_SITES)
+check-mail: $(if $(MAIL_SITES),,builder)
+	files/usr/local/sbin/topgen-mail-sites.sh $(or $(MAIL_SITES),$$($(call packer_list,mail_sites)))
 
 builder:
 	docker build \
