@@ -68,7 +68,7 @@ and HTTPS with a certificate from the TopGen CA.
 ## Mail
 
 Each mail server offers these ports. Each has the account `administrator` with the password
-`password`.
+`password` by default.
 
 | Port | Use |
 |---|---|
@@ -76,7 +76,24 @@ Each mail server offers these ports. Each has the account `administrator` with t
 | 587 | Submission with STARTTLS |
 | 993 | IMAPS |
 
-Add domains and accounts to `/etc/topgen/vmail.cfg`, one `server IP user:password` on each line.
+The default server addresses are stored in `/var/lib/topgen/etc/vmail.cfg`.
+Add custom servers and accounts to `/etc/topgen/vmail.cfg`. Each line is a server, its address, then
+`user:password` pairs. Give each domain an address of its own.
+Custom injects overwrite defaults if they clash.
+
+```text
+mail.example.com 203.0.113.25 jdoe:Summer2026 asmith:Winter2026 operator:operator
+mail.site.net 203.0.113.26 helpdesk:changeme billing:invoice123
+```
+
+
+Mail lands on the VM in `/var/lib/topgen/vmail`. Each account has a Maildir at
+`/var/lib/topgen/vmail/<domain>/<user>`.
+An account reads its mail with any IMAP client. Connect to its server on port 993 with TLS. Log
+in with the user name and password. The server picks the domain from the address you connect
+to. Its certificate is for `imap.topgen.info`.
+Mail to an unknown user of a mail domain lands in the catch all. It is one mbox file for every
+domain, `/var/lib/topgen/vmail/DFLT`.
 
 ## Certificates
 
