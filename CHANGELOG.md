@@ -1,3 +1,9 @@
+# [2026.11.18.1](https://github.com/nblair2/slatebox/compare/v2026.11.17.2...v2026.11.18.1) - 2026-11-18
+
+### 📚 Documentation
+
+- _(vmail)_ where mail lands and how to read it [_(834fff06)_](https://github.com/nblair2/slatebox/commit/834fff06ed00232aced34289cc842e404138bf98)
+
 # [2026.11.17.2](https://github.com/nblair2/slatebox/compare/v2026.11.17.1...v2026.11.17.2) - 2026-11-17
 
 ### 🚀 Features
